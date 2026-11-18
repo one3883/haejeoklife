@@ -26627,8 +26627,8 @@ function celKidFriendScene(){
 {const _celestialChildScene=celestialChildScene;celestialChildScene=function(){const x=celKidFriendScene();if(x&&Math.random()<.35)return x;return _celestialChildScene.apply(this,arguments)}}
 
 // 4) 엄청난 부자 되기: 3억 베리
-DREAMS.rich.progress=()=>Math.min(1,Math.max(0,p.money)/300000000);
-DREAMS.rich.done=()=>p.money>=300000000;
+DREAMS.rich.progress=()=>Math.min(1,Math.max(0,p.money)/80000000);
+DREAMS.rich.done=()=>p.money>=80000000;
 
 // 5) 번쩍번쩍 열매 전용: 베가펑크와의 우정, 그리고 친구를 죽이라는 임무
 function vegapunkNpc(){return (p.npcs||[]).find(n=>n.name==="베가펑크")}
@@ -26694,9 +26694,9 @@ function scientistOption(){if(p.job==="과학자")return [];return [{title:"과�
 // 과학자 전용 사건
 function scientistJobScene(){
  const pool=[
-  {major:true,key:"job_sci_invent",cooldown:3,title:"첫 발명",body:"밤을 새워 만든 장치가 드디어 완성을 앞두고 있습니다. 전원을 넣는 순간 성공일지, 폭발일지는 아무도 모릅니다.",choices:[
+  ...((p.seenScenes||{}).job_sci_invent!==undefined?[]:[{major:true,key:"job_sci_invent",cooldown:99,title:"첫 발명",body:"밤을 새워 만든 장치가 드디어 완성을 앞두고 있습니다. 전원을 넣는 순간 성공일지, 폭발일지는 아무도 모릅니다.",choices:[
    {title:"전원을 넣는다",desc:"지식이 높을수록 성공하기 쉽다.",run:()=>{if(p.knowledge+ri(0,40)>=75){p.money+=ri(500000,2000000);gainStanding(5);achieve("첫 발명 성공");log("발명품을 완성해 큰 주목을 받음")}else{p.health-=ri(5,15);log("실험 장치가 폭발해 다침")}}},
-   {title:"한 번 더 점검한다",desc:"안전하게 간다.",run:()=>{p.knowledge+=3;log("발명품을 다시 점검함")}}]},
+   {title:"한 번 더 점검한다",desc:"안전하게 간다.",run:()=>{p.knowledge+=3;log("발명품을 다시 점검함")}}]}]),
   {major:true,key:"job_sci_seastone",cooldown:4,title:"해루석 연구",body:"능력자의 힘을 빼앗는 신비한 광물, 해루석. 그 성질을 밝혀내면 큰 발견이 되겠지만, 세계정부가 이 연구를 주시하고 있습니다.",choices:[
    {title:"깊이 연구한다",desc:"지식과 평판이 크게 오르지만 정부의 눈에 띈다.",run:()=>{p.knowledge+=7;gainStanding(4);if(Math.random()<.3){p.flags.wgHunt=true;log("해루석 연구가 세계정부의 감시를 받기 시작함")}else log("해루석의 성질 일부를 밝혀냄")}},
    {title:"공개된 자료만 정리한다",desc:"안전하게 성과를 낸다.",run:()=>{p.knowledge+=3;log("해루석에 관한 공개 자료를 정리함")}}]},
@@ -26730,8 +26730,8 @@ function nationSagaScene(){
  if(st===-1){
   if(!(p.dream&&p.dream.id==="rich"&&p.dream.status==="달성")||!["상인","과학자"].includes(p.job)||p.flags.nationAsked)return null;
   p.flags.nationAsked=true;
-  return {essential:true,major:true,key:"nation_found",tags:["kingdom"],title:"나만의 나라",body:`3억 베리가 넘는 재산. 이제 당신에게는 섬 하나를 사들여 사람을 모으고, 법과 깃발을 정할 힘이 있습니다. 당신만의 나라를 세우시겠습니까?`,choices:[
-   {title:"나라를 세운다",desc:"막대한 재산이 들지만 한 나라의 왕이 된다.",run:()=>{p.money-=100000000;const nm=`${p.name} 왕국`;p.flags.nation=nm;p.flags.nationStage=1;p.flags.nationNext=p.age+ri(2,4);achieve("나라를 세움");addNews(`신생국 '${nm}' 건국 — 세계정부 가맹 신청`);log(`${nm}을(를) 세우고 왕이 됨`)}},
+  return {essential:true,major:true,key:"nation_found",tags:["kingdom"],title:"나만의 나라",body:`8천만 베리가 넘는 재산. 이제 당신에게는 섬 하나를 사들여 사람을 모으고, 법과 깃발을 정할 힘이 있습니다. 당신만의 나라를 세우시겠습니까?`,choices:[
+   {title:"나라를 세운다",desc:"8천만 베리가 들지만 한 나라의 왕이 된다.",run:()=>{p.money-=80000000;const nm=`${p.name} 왕국`;p.flags.nation=nm;p.flags.nationStage=1;p.flags.nationNext=p.age+ri(2,4);achieve("나라를 세움");addNews(`신생국 '${nm}' 건국 — 세계정부 가맹 신청`);log(`${nm}을(를) 세우고 왕이 됨`)}},
    {title:"부자로 사는 것으로 충분하다",desc:"나라는 세우지 않는다.",run:()=>{log("나라를 세우지 않기로 함")}}]};
  }
  if(st<1||p.age<(p.flags.nationNext??0))return null;
@@ -26797,8 +26797,8 @@ function canonizePool(pool){
  for(const s of pool||[]){
   if(!s||!s.choices)continue;
   let crew=null;
-  if(s.key==="kid_t_pirate"){crew=canonCrewName();s.body=`항구 술집 뒷골목에서 ${crew}의 깃발을 단 배에서 내린 애꾸눈 해적이 말을 걸었습니다. "꼬마, 배 위에서 일해 볼 생각 없나? 우리 배는 늘 일손이 모자라거든."`}
-  for(const c of s.choices){const run=c.run;c.run=function(){const before=p.flags.pirateContact;const r=run.apply(this,arguments);if(p.flags.pirateContact&&p.flags.pirateContact!==before)canonizeContact(crew);return r}}
+  if(s.key==="kid_t_pirate"){crew=canonCrewName();s.body=`항구 술집 뒷골목에서 ${crew}의 깃발을 단 배에서 내린 해적이 말을 걸었습니다. "꼬마, 배 위에서 일해 볼 생각 없나? 우리 배는 늘 일손이 모자라거든."`}
+  for(const c of s.choices){const run=c.run;const w=function(){const before=p.flags.pirateContact;const r=run.apply(this,arguments);if(p.flags.pirateContact&&p.flags.pirateContact!==before)canonizeContact(crew);return r};w.toString=()=>run.toString();c.run=w}
  }
  return pool;
 }
@@ -26810,6 +26810,18 @@ function canonizePool(pool){
 {const _kfo=kidFutureOptions;kidFutureOptions=function(){const o=_kfo.apply(this,arguments);const c=p.flags.pirateContact;
  if(c&&p.status!=="해적"&&!o.some(x=>String(x.title).includes(c)))o.push({title:`스카우트를 받았던 ${c}에 들어간다`,desc:"어릴 적 말을 걸어 왔던 그 해적단을 찾아간다. 견습보다 한 단계 높게 시작한다.",run:()=>{joinPirates();p.crew=c;const L=careerLadder();p.rankLevel=Math.max(p.rankLevel||0,1);p.rankTitle=L[p.rankLevel];log(`어릴 적 스카우트를 받았던 ${c}에 들어감`)}});
  return o}}
+/* =========================================================== */
+
+/* ===================== v56 ===================== */
+// 1) 연봉 하향: 해적·현상금 사냥꾼·혁명군 25%, 과학자는 학자보다 조금 낮게
+{const _as56=annualSalary;annualSalary=function(job=p.job,level=p.rankLevel||0,rank=p.rankTitle){const v=_as56.apply(this,arguments);if(["해적","현상금 사냥꾼","혁명군"].includes(job))return Math.round(v*.75);if(job==="과학자")return Math.round(v*.85);return v}}
+// 2) 사황·루피·미호크 같은 특별한 강적에게 진 사인에는 무장색·해루석 문구를 붙이지 않는다
+const SPECIAL_FOE=/루피|밀짚모자|라프텔|사황|샹크스|빨간 머리|카이도|빅맘|샬롯 링링|검은수염|티치|미호크|세계 최강의 검사|조로|이무|오로성|신의 기사단|대장|원수|키자루|아카이누|아오키지|후지토라|료쿠규|사카즈키|쿠잔|카타쿠리|마르코|흰수염|에이스/;
+{const _fc=finishCause;finishCause=function(c){if(c&&SPECIAL_FOE.test(String(c.type)+" "+String(c.detail)))return c;return _fc.apply(this,arguments)}}
+
+// 3) 선택지 영향 태그: 코드가 자동 정렬(띄어쓰기 추가)되어도 인식하도록 공백을 지운 뒤 분석한다
+{const _ic=impactChips,strip=f=>f?String(f).replace(/\s+/g,""):"";impactChips=function(c){return _ic({run:{toString:()=>strip(c.run)},after:c.after?{toString:()=>strip(c.after)}:undefined})}}
+{const _tf=traitFrom;traitFrom=function(c,src){return _tf(c,String(src||"").replace(/\s+/g,""))}}
 /* =========================================================== */
 </script>
   </body>
