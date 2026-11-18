@@ -16,6 +16,13 @@
       gtag("js", new Date());
       gtag("config", "G-0NQW3R7249");
     </script>
+    <!-- Kakao JavaScript SDK (수배서 카카오톡 공유) -->
+    <script
+      defer
+      src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js"
+      integrity="sha384-DKYJZ8NLiK8MN4/C5P2dtSmLQ4KwPaoqAfyA/DfmEc1VDxu4yyC7wy6K1Hs90nka"
+      crossorigin="anonymous"
+    ></script>
     <title>ONE PIECE LIFE — 바다 위의 인생</title>
     <meta name="description" content="원피스 세상에서 살아가기" />
     <!-- Open Graph (카카오톡/페이스북 링크 미리보기) -->
@@ -570,7 +577,7 @@
           <div class="field">
             <label>인생의 속도</label
             ><select id="speed">
-              <option value="20000">30분 안팎 · 1년 약 20초</option>
+              <option value="20000" selected>30분 안팎 · 1년 약 20초 (기본)</option>
               <option value="10000">빠르게 · 1년 약 10초</option>
               <option value="5000">매우 빠르게 · 1년 약 5초</option>
             </select>
@@ -631,6 +638,12 @@
                     onclick="togglePause()"
                   >
                     일시정지</button
+                  ><button
+                    class="btn secondary"
+                    id="speedFast"
+                    onclick="setSpeed('fast')"
+                  >
+                    ⚡빠르게</button
                   ><button
                     class="btn secondary active"
                     id="speed1"
@@ -3445,7 +3458,7 @@
         return ` (예상 승률 ${Math.round(Math.max(raw, floor) * 100)}%)`;
       }
       function pirateKingSagaCooldown() {
-        const gap = ri(4, 8);
+        const gap = ri(4, 6);
         p.flags.pirateKingSagaNextAge = p.age + gap;
         return gap;
       }
@@ -7103,7 +7116,7 @@
                   if (
                     !battle({
                       foe: rand([
-                        "흰수염 해적단의 '불사조' 마르코",
+                        "흰수염 산하 해적단 선장 '뇌경' 맥가이",
                         "흰수염 해적단의 '다이아몬드' 죠즈",
                         "흰수염 해적단 2번대 대장 포트거스 D. 에이스의 동료들",
                       ]),
@@ -7166,7 +7179,7 @@
                 run: () => {
                   if (
                     !battle({
-                      foe: "해군 본부의 아카이누 대장 부대",
+                      foe: "해군 본부의 도베르만 중장",
                       base: 0.12,
                       loseHp: [15, 35],
                     }) &&
@@ -10458,7 +10471,7 @@
         ],
         C: [
           "가시가시 열매",
-          "흉내흉내 열매",
+          "복사복사 열매",
           "스프링스프링 열매",
           "투명투명 열매",
           "느릿느릿 열매",
@@ -26858,6 +26871,264 @@ function atRaftel(){return !!(p&&p.status==="해적"&&p.flags.laughTaleReached&&
  if(sc&&sc.key==="pirate_king_raftel_route"){const c=sc.choices&&sc.choices.find(x=>x.title==="라프텔로 향한다");if(c){const run=c.run;const w=function(){const r=run.apply(this,arguments);p.place=RAFTEL;p.sea="신세계";p.flags.pirateKingSagaNextAge=p.age+1;
    scenes.splice(sceneIndex+1,0,{essential:true,key:"pk_laughtale_arrive",title:"라프텔 도착",body:"네 개의 좌표가 겹치는 바다 끝에서, 안개 속으로 섬 하나가 모습을 드러냈습니다. 해적왕 골 D. 로저가 '웃음 이야기'라 이름 붙인 마지막 섬, 라프텔입니다.\n\n당신의 배가 해변에 닿았습니다. 섬 깊은 곳에서, 당신보다 먼저 이곳을 노려 온 자들의 기척이 느껴집니다.",choices:null,effect:()=>{p.happiness+=8},summary:"마지막 섬 라프텔에 상륙함"});return r};w.toString=()=>run.toString();c.run=w}}
  return sc}}
+/* =========================================================== */
+
+/* ===================== v60: 사망 시 현상금 수배서 + 공유 ===================== */
+const SHARE_URL="https://haejeoklife.com/";
+function posterData(cause){
+ // 현상금이 있으면 현상금을 크게, 없으면 재산을 크게. 둘 다 있으면 재산을 아래에 함께 적는다.
+ const bounty=Math.max(0,Math.floor(p.bounty||0)),wealth=Math.max(0,Math.floor(p.money||0)),real=bounty>0;
+ const value=real?bounty:wealth;
+ const bp=p.birthPlace||p.place||{},D=p.dream&&DREAMS[p.dream.id];
+ const rows=[["출생",[bp.sea,bp.name].filter(Boolean).join(" · ")],["종족",`${p.race} · ${p.status}`],["직업",jobTitle()]];
+ if(p.crew)rows.push(["소속",p.crew]);
+ if(p.fruit)rows.push(["열매",p.fruit]);
+ rows.push(["꿈",D?`${D.name} — ${p.dream.status==="진행"?"이루지 못함":p.dream.status}`:"정하지 않음"]);
+ rows.push(["사인",cause.type]);
+ // 인생의 주요 사건: 업적 중 자잘한 것(첫 항해·집 마련·재능 등)은 뒤로 미루고 최대 4개, 일어난 순서대로
+ const ach=(p.achievements||[]).map((t,i)=>({t:String(t),i,minor:/첫 항해|마련|재능/.test(String(t))}));
+ const major=ach.filter(x=>!x.minor).slice(-4),minor=ach.filter(x=>x.minor).slice(-(4-major.length)||ach.length);
+ const events=major.concat(major.length<4?minor:[]).sort((a,b)=>a.i-b.i).map(x=>x.t);
+ return {name:p.name,age:realAge(),title:endingTitle(cause),cause:cause.type,real,value,bounty,wealth,rows,events,
+  race:p.race,pirate:p.status==="해적",noble:p.status==="천룡인"};
+}
+// 종족별 실루엣. 머리 위치를 돌려주면 모자·버블 헬멧을 그 위에 얹는다.
+function drawSilhouette(g,d,cx,py,ph){
+ const C="#4a2c15",L="rgba(201,176,122,.55)";if(d.race==="소인족")cx-=90;g.fillStyle=C;g.strokeStyle=C;g.lineCap="round";g.lineJoin="round";
+ const E=(x,y,rx,ry,a0=0,a1=7)=>{g.beginPath();g.ellipse(x,y,rx,ry,0,a0,a1);g.fill()};
+ const P=(pts)=>{g.beginPath();g.moveTo(pts[0],pts[1]);for(let i=2;i<pts.length;i+=2)g.lineTo(pts[i],pts[i+1]);g.closePath();g.fill()};
+ const bust=(sw,sh,hy,hrx,hry)=>{E(cx,py+ph+40,sw,sh,Math.PI,0);g.fillRect(cx-hrx*.42,hy+hry*.5,hrx*.84,ph);E(cx,hy,hrx,hry);return {hx:cx,hy,hrx,hry,top:hy-hry}};
+ let h,helmet=false;
+ switch(d.race){
+  case "어인":
+   h=bust(235,165,py+182,100,90);
+   P([cx-34,h.top+14,cx+6,h.top-62,cx+46,h.top+18]); // 등지느러미
+   P([cx-h.hrx+6,h.hy-14,cx-h.hrx-34,h.hy-40,cx-h.hrx+2,h.hy+18]);P([cx+h.hrx-6,h.hy-14,cx+h.hrx+34,h.hy-40,cx+h.hrx-2,h.hy+18]);
+   g.strokeStyle=L;g.lineWidth=4;for(const s of[-1,1])for(let i=0;i<3;i++){g.beginPath();g.moveTo(cx+s*(28+i*9),h.hy+h.hry*.62);g.lineTo(cx+s*(24+i*9),h.hy+h.hry*.95);g.stroke()}
+   break;
+  case "인어":
+   E(cx,py+235,122,165); // 긴 머리카락
+   h=bust(165,135,py+178,74,88);
+   for(const s of[-1,1])P([cx+s*(h.hrx-4),h.hy-6,cx+s*(h.hrx+40),h.hy-34,cx+s*(h.hrx+30),h.hy+4,cx+s*(h.hrx+42),h.hy+26,cx+s*(h.hrx-2),h.hy+18]); // 지느러미 귀
+   break;
+  case "밍크족":
+   h=bust(200,150,py+182,88,84);
+   for(const s of[-1,1])P([cx+s*30,h.top+24,cx+s*62,h.top-58,cx+s*86,h.top+34]); // 쫑긋한 귀
+   E(cx,h.hy+42,46,32); // 주둥이
+   for(const s of[-1,1])P([cx+s*(h.hrx-8),h.hy-10,cx+s*(h.hrx+22),h.hy+6,cx+s*(h.hrx+6),h.hy+20,cx+s*(h.hrx+24),h.hy+36,cx+s*(h.hrx-12),h.hy+44]); // 볼 털
+   break;
+  case "거인족":
+   h=bust(320,230,py+205,124,138);
+   P([cx-80,h.hy+60,cx+80,h.hy+60,cx+60,h.hy+150,cx,h.hy+185,cx-60,h.hy+150]); // 수염
+   if(!d.pirate&&!d.noble){helmet=true;E(cx,h.top+46,132,62,Math.PI,0);g.lineWidth=26;
+    for(const s of[-1,1]){g.beginPath();g.moveTo(cx+s*110,h.top+30);g.quadraticCurveTo(cx+s*205,h.top+10,cx+s*190,h.top-80);g.stroke()}} // 뿔 투구
+   break;
+  case "소인족":
+   E(cx+62,py+300,40,62); // 복슬복슬 꼬리
+   E(cx,py+322,40,52);h={hx:cx,hy:py+246,hrx:34,hry:36,top:py+210};E(cx,h.hy,h.hrx,h.hry);
+   g.fillRect(cx-28,py+360,18,64);g.fillRect(cx+10,py+360,18,64);
+   g.fillStyle="rgba(58,34,16,.35)";E(cx,py+428,80,8);g.fillStyle=C; // 그림자
+   break;
+  case "족장족":
+   h={hx:cx,hy:py+86,hrx:48,hry:54,top:py+32};E(cx,h.hy,h.hrx,h.hry);
+   E(cx,py+190,62,72);g.fillRect(cx-12,h.hy+40,24,40);
+   g.lineWidth=26;g.beginPath();g.moveTo(cx-26,py+240);g.lineTo(cx-40,py+ph+10);g.moveTo(cx+26,py+240);g.lineTo(cx+40,py+ph+10);g.stroke(); // 긴 다리
+   g.lineWidth=18;g.beginPath();g.moveTo(cx-56,py+160);g.lineTo(cx-84,py+250);g.moveTo(cx+56,py+160);g.lineTo(cx+84,py+250);g.stroke();
+   break;
+  case "장수족":
+   h=bust(170,140,py+196,70,82);g.lineWidth=32;
+   for(const s of[-1,1]){g.beginPath();g.moveTo(cx+s*140,py+ph-36);g.lineTo(cx+s*205,py+262);g.lineTo(cx+s*150,py+160);g.lineTo(cx+s*212,py+64);g.stroke();E(cx+s*214,py+50,24,24)} // 관절이 둘인 긴 팔
+   break;
+  case "버커니어족":
+   h=bust(265,195,py+182,98,106);g.lineWidth=18;
+   for(const s of[-1,1]){g.beginPath();g.moveTo(cx+s*52,h.top+20);g.quadraticCurveTo(cx+s*70,h.top-30,cx+s*40,h.top-50);g.stroke()} // 뿔
+   break;
+  default:
+   h=bust(190,150,py+175,82,96);
+ }
+ g.fillStyle=C;
+ if(d.noble){ // 천룡인 버블 헬멧
+  const r=Math.max(h.hrx,h.hry)+30;g.strokeStyle="rgba(250,248,240,.85)";g.lineWidth=5;g.beginPath();g.arc(h.hx,h.hy,r,0,7);g.stroke();
+  g.fillStyle="rgba(255,255,255,.18)";g.fill();g.strokeStyle="rgba(255,255,255,.9)";g.lineWidth=6;g.beginPath();g.arc(h.hx,h.hy,r-14,Math.PI*1.1,Math.PI*1.4);g.stroke();
+ }else if(d.pirate&&!helmet){ // 해적 모자
+  const s=h.hrx/82;g.fillStyle=C;E(h.hx,h.top+16*s,150*s,28*s);E(h.hx,h.top-4*s,88*s,52*s,Math.PI,0);
+  g.fillStyle="#7a5228";g.fillRect(h.hx-88*s,h.top-8*s,176*s,14*s);
+ }
+}
+function drawWanted(d){
+ const both=d.real&&d.wealth>0,dy=both?40:0;
+ // 세로 배치를 먼저 계산해서 사건 수에 맞게 종이 길이를 정한다
+ const ev=d.events||[],tblTop=968+dy,rh=Math.min(44,Math.floor(270/d.rows.length)),tblBottom=tblTop+rh*d.rows.length+12;
+ const evTop=tblBottom+16,evH=ev.length?34+ev.length*30:0;
+ const W=720,H=evTop+evH+132,c=document.createElement("canvas");c.width=W;c.height=H;const g=c.getContext("2d");
+ const SERIF='Georgia,"Times New Roman",serif',KR='"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif',INK="#3a2210";
+ const fit=(t,font,size,maxW,min=14)=>{let s=size;do{g.font=font.replace("{s}",s);if(g.measureText(t).width<=maxW)break;s-=2}while(s>min);return s};
+ const center=(t,y,font,size,maxW,color=INK)=>{fit(t,font,size,maxW);g.fillStyle=color;g.textAlign="center";g.textBaseline="alphabetic";g.fillText(t,W/2,y)};
+ // 낡은 종이
+ g.fillStyle="#ecd9a8";g.fillRect(0,0,W,H);
+ let rg=g.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,H*.75);rg.addColorStop(0,"rgba(0,0,0,0)");rg.addColorStop(1,"rgba(110,65,20,.45)");g.fillStyle=rg;g.fillRect(0,0,W,H);
+ for(let i=0;i<1700;i++){g.fillStyle=`rgba(90,55,20,${Math.random()*.08})`;g.fillRect(Math.random()*W,Math.random()*H,Math.random()*3+1,Math.random()*3+1)}
+ for(let i=0;i<6;i++){g.fillStyle="rgba(120,75,25,.07)";g.beginPath();g.arc(Math.random()*W,Math.random()*H,30+Math.random()*70,0,7);g.fill()}
+ g.strokeStyle=INK;g.lineWidth=4;g.strokeRect(28,28,W-56,H-56);g.lineWidth=1.5;g.strokeRect(38,38,W-76,H-76);
+ // WANTED
+ center("WANTED",172,`900 {s}px ${SERIF}`,150,W-110);
+ // 사진 칸
+ const px=92,py=202,pw=W-184,ph=380;
+ let pg=g.createLinearGradient(0,py,0,py+ph);pg.addColorStop(0,"#c9b07a");pg.addColorStop(1,"#9c7f4a");g.fillStyle=pg;g.fillRect(px,py,pw,ph);
+ g.save();g.beginPath();g.rect(px,py,pw,ph);g.clip();drawSilhouette(g,d,W/2,py,ph);g.restore();
+ g.strokeStyle=INK;g.lineWidth=5;g.strokeRect(px,py,pw,ph);
+ // 사망 도장
+ g.save();g.translate(px+pw-120,py+ph-70);g.rotate(-0.22);g.lineWidth=6;
+ g.fillStyle="rgba(236,217,168,.8)";g.fillRect(-118,-46,236,92);g.strokeStyle=g.fillStyle="rgba(178,28,20,.95)";
+ g.strokeRect(-118,-46,236,92);g.lineWidth=2;g.strokeRect(-108,-36,216,72);g.textAlign="center";g.textBaseline="middle";g.font=`900 44px ${KR}`;g.fillText("사 망",0,-6);
+ g.font=`900 26px ${KR}`;g.fillText(`향년 ${d.age}세`,0,24);g.restore();
+ // DEAD OR ALIVE · 이름 · 현상금
+ center("DEAD  OR  ALIVE",648,`700 {s}px ${SERIF}`,50,W-140);
+ center(d.name,734,`900 {s}px ${KR}`,72,W-130);
+ const amt=`฿ ${d.value.toLocaleString()}-`;
+ if(d.real){
+  center(amt,830,`900 {s}px "Times New Roman",serif`,74,W-120);
+  center("현 상 금",866,`700 {s}px ${KR}`,22,W-160,"#6b4a26");
+ }else{ // 재산은 금액 바로 옆에 '재산'이라고 적는다
+  g.font=`900 36px ${KR}`;const lw=g.measureText("재산").width,gap=18;
+  const s=fit(amt,`900 {s}px "Times New Roman",serif`,74,W-120-lw-gap);const aw=g.measureText(amt).width;
+  const x0=W/2-(lw+gap+aw)/2;g.textAlign="left";g.textBaseline="alphabetic";
+  g.fillStyle="#6b4a26";g.font=`900 36px ${KR}`;g.fillText("재산",x0,830-Math.round(s*.08));
+  g.fillStyle=INK;g.font=`900 ${s}px "Times New Roman",serif`;g.fillText(amt,x0+lw+gap,830);
+ }
+ if(both)center(`재산  ฿ ${d.wealth.toLocaleString()}`,906,`800 {s}px ${KR}`,30,W-160,"#4e3218");
+ // 엔딩 칭호
+ g.strokeStyle=INK;g.lineWidth=2;g.beginPath();g.moveTo(80,890+dy);g.lineTo(W-80,890+dy);g.stroke();
+ center(`「${d.title}」  향년 ${d.age}세`,938+dy,`800 {s}px ${KR}`,34,W-130);
+ // 인생 요약표
+ const tx=96,vx=196,top=tblTop;
+ g.fillStyle="rgba(255,248,225,.35)";g.fillRect(tx-14,top,W-2*(tx-14),rh*d.rows.length+12);
+ d.rows.forEach(([k,v],i)=>{const y=top+rh*(i+1)-4;g.textAlign="left";g.textBaseline="alphabetic";
+  g.fillStyle="#7a5228";g.font=`800 22px ${KR}`;g.fillText(k,tx,y);
+  fit(String(v),`700 {s}px ${KR}`,25,W-vx-96);g.fillStyle=INK;g.fillText(String(v),vx,y);
+  if(i<d.rows.length-1){g.strokeStyle="rgba(58,34,16,.18)";g.lineWidth=1;g.beginPath();g.moveTo(tx,y+12);g.lineTo(W-tx,y+12);g.stroke()}});
+ // 주요 사건 (표 아래, 더 작게)
+ if(ev.length){
+  g.textAlign="left";g.textBaseline="alphabetic";g.fillStyle="#7a5228";g.font=`800 19px ${KR}`;g.fillText("인생의 주요 사건",tx,evTop+22);
+  ev.forEach((t,i)=>{const y=evTop+22+30*(i+1);g.fillStyle="#7a5228";g.font=`700 19px ${KR}`;g.fillText("•",tx+2,y);
+   fit(t,`600 {s}px ${KR}`,20,W-tx-120);g.fillStyle="#4e3218";g.fillText(t,tx+22,y)});
+ }
+ // 맨 아래: 사이트 주소를 크게 새긴다
+ g.strokeStyle=INK;g.lineWidth=2;g.beginPath();g.moveTo(80,H-122);g.lineTo(W-80,H-122);g.stroke();
+ center("haejeoklife.com",H-66,`900 {s}px ${SERIF}`,58,W-120);
+ return c;
+}
+function moneyText(d){return [d.real?`현상금 ${d.bounty.toLocaleString()} 베리`:"",(!d.real||d.wealth>0)?`재산 ${d.wealth.toLocaleString()} 베리`:""].filter(Boolean).join(" · ")}
+// ── 링크 복사: 카카오톡 외의 앱(인스타·디스코드·문자 등)에 붙여넣기용 ──
+async function copyShareLink(d,btn){
+ const text=`💀 [WANTED] ${d.name} — ${moneyText(d)}\n「${d.title}」 향년 ${d.age}세\n원피스 세상에서 너는 어떤 인생을 살까? 나도 해보기 👉 ${SHARE_URL}`;
+ let ok=false;
+ try{await navigator.clipboard.writeText(text);ok=true}catch(e){
+  const t=document.createElement("textarea");t.value=text;t.setAttribute("readonly","");t.style.cssText="position:fixed;opacity:0";document.body.appendChild(t);t.select();
+  try{ok=document.execCommand("copy")}catch(_){}t.remove()}
+ const label=btn.dataset.label||(btn.dataset.label=btn.textContent);
+ btn.textContent=ok?"✅ 복사했어요!":"복사 실패 — 다시 눌러 주세요";
+ clearTimeout(btn._t);btn._t=setTimeout(()=>{btn.textContent=label},1800);
+}
+// ── 카카오톡 공유: 수배서를 Kakao 서버에 올린 뒤 피드 템플릿으로 보낸다 ──
+const KAKAO_JS_KEY="6ceb5c8383c04f5832d0c2fe1352e9c7";
+function kakaoReady(){const K=window.Kakao;if(!K)return null;try{if(!K.isInitialized())K.init(KAKAO_JS_KEY)}catch(e){return null}return K}
+async function shareKakao(cv,d,btn){
+ const K=kakaoReady();
+ if(!K){alert("카카오톡 공유 기능을 불러오지 못했어요. 인터넷 연결을 확인하고 잠시 후 다시 눌러 주세요.");return}
+ const label=btn.textContent;btn.disabled=true;btn.textContent="수배서 올리는 중…";
+ try{
+  const blob=await new Promise(r=>cv.toBlob(r,"image/jpeg",0.9));
+  const res=await K.Share.uploadImage({file:[new File([blob],"wanted.jpg",{type:"image/jpeg"})]});
+  const img=res.infos.original;
+  const link={mobileWebUrl:SHARE_URL,webUrl:SHARE_URL};
+  K.Share.sendDefault({objectType:"feed",
+   content:{title:`[WANTED] ${d.name} — ${moneyText(d)}`,description:`「${d.title}」 향년 ${d.age}세 · 원피스 세상에서 너는 어떤 인생을 살까?`,
+    imageUrl:img.url,imageWidth:img.width,imageHeight:img.height,link},
+   buttons:[{title:"나도 해보기",link}]});
+ }catch(e){console.error("kakao share",e);alert("카카오톡 공유에 실패했어요. 잠시 후 다시 시도해 주세요.")}
+ finally{btn.disabled=false;btn.textContent=label}
+}
+const WANTED_HIDE=["sceneArt","eventTitle","scene","lastResult"];
+function clearWanted(){const b=document.getElementById("wantedBox");if(b)b.remove();WANTED_HIDE.forEach(id=>{const e=document.getElementById(id);if(e&&e.dataset.wantedHidden){e.style.display=e.dataset.wantedHidden==="-"?"":e.dataset.wantedHidden;delete e.dataset.wantedHidden}})}
+function wantedPoster(cause){
+ clearWanted();
+ const d=posterData(cause),cv=drawWanted(d),file=`WANTED_${d.name}.png`;
+ const box=document.createElement("div");box.id="wantedBox";box.style.cssText="margin:4px 0 14px;text-align:center;scroll-margin-top:12px";
+ const img=document.createElement("img");img.src=cv.toDataURL("image/png");img.alt=`${d.name}의 현상금 수배서`;
+ img.style.cssText="display:block;width:100%;max-width:400px;margin:0 auto;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.45)";
+ const row=document.createElement("div");row.className="actions";row.style.justifyContent="center";
+ const mk=(label,cls,fn)=>{const b=document.createElement("button");b.className=cls;b.textContent=label;b.onclick=()=>fn(b);row.appendChild(b);return b};
+ mk("🖼 이미지 저장","btn secondary",()=>{const a=document.createElement("a");a.href=img.src;a.download=file;document.body.appendChild(a);a.click();a.remove()});
+ const kb=mk("💬 카카오톡 공유","btn",b=>shareKakao(cv,d,b));
+ kb.style.background="#FEE500";kb.style.color="#191919"; // 카카오 공유 버튼 표준 색
+ mk("🔗 링크 복사","btn secondary",b=>copyShareLink(d,b));
+ // 상세 인생 기록은 접어 두고 '더보기'로 펼친다
+ const more=document.createElement("button");more.className="btn secondary";more.style.cssText="display:block;width:100%;max-width:400px;margin:10px auto 0";
+ const setMore=open=>{["eventTitle","scene"].forEach(id=>{const e=$(id);if(e)e.style.display=open?"":"none"});more.textContent=open?"▲ 상세 기록 접기":"▼ 더보기 — 상세 인생 기록"};
+ let open=false;more.onclick=()=>{open=!open;setMore(open);if(open)$("eventTitle").scrollIntoView({behavior:"smooth",block:"start"})};
+ box.appendChild(img);box.appendChild(row);box.appendChild(more);
+ WANTED_HIDE.forEach(id=>{const e=document.getElementById(id);if(e){e.dataset.wantedHidden=e.style.display||"-";e.style.display="none"}});
+ setMore(false);
+ const art=$("sceneArt");art.parentNode.insertBefore(box,art);
+ setTimeout(()=>{try{box.scrollIntoView({behavior:"smooth",block:"start"})}catch(e){}},50);
+}
+{const _ad60=afterDeath;afterDeath=function(cause){const r=_ad60.apply(this,arguments);try{wantedPoster(cause)}catch(e){console.error("wanted poster",e)}return r}}
+// 자녀로 이어 살기 등으로 새 인생이 시작되면 수배서를 치운다
+{const _b60=begin;begin=function(){clearWanted();return _b60.apply(this,arguments)}}
+/* =========================================================== */
+
+/* ===================== v61: GA 맞춤 이벤트 ===================== */
+function gaEvent(name,params){try{if(typeof gtag==="function")gtag("event",name,params||{})}catch(e){}}
+// 새 인생 시작 (저장 덮어쓰기 확인에서 취소하면 보내지 않음)
+{const _begin61=begin;begin=function(){const before=p;const r=_begin61.apply(this,arguments);
+ if(p&&p!==before)gaEvent("game_start",{sea:(p.birthPlace||p.place||{}).sea||p.sea,race:p.race,difficulty:p.difficulty||"normal"});return r}}
+// 캐릭터 사망
+{const _ad61=afterDeath;afterDeath=function(cause){try{gaEvent("game_end",{age:realAge(),job:jobTitle(),bounty:Math.floor(p.bounty||0),wealth:Math.floor(p.money||0)})}catch(e){}
+ return _ad61.apply(this,arguments)}}
+// 이어하기 (저장 데이터를 실제로 불러왔을 때만)
+{const _lg61=loadGame;loadGame=function(){const before=p;const r=_lg61.apply(this,arguments);if(p&&p!==before)gaEvent("game_continue");return r}}
+/* =========================================================== */
+
+/* ===================== v62: '⚡빠르게' = 16배속 자동 진행 ===================== */
+// 1×·2×·3×와 같은 시간 흐름 방식에서 속도만 16배. 한 해 약 1.25초, 선택지 없는 사건은 약 0.45초 만에 저절로 넘어간다.
+// 선택지가 있는 사건은 다른 속도와 똑같이 고를 때까지 멈춘다. 새 인생·불러오기는 항상 1×로 시작.
+const FAST_RATE=16;
+let fastMode=false;
+{const _ss62=setSpeed;setSpeed=function(v){
+ if(v!=="fast"){fastMode=false;return _ss62.call(this,v)}
+ fastMode=true;rate=FAST_RATE;
+ if(!autoPlay)setAutoPlay(true);            // 빠르게는 저절로 흘러야 의미가 있다
+ if(userPaused)togglePause();
+ render();
+ if(clockShouldRun()){                       // 지금 돌고 있는 타이머에 바로 16배 적용
+  if(scenesPending()){const x=scenes[sceneIndex];if(x&&!x.choices)armAutoAdvance()}
+  else startClock();
+ }}}
+{const _r62=render;render=function(){const r=_r62.apply(this,arguments);try{
+ const f=$("speedFast");if(f){f.classList.toggle("active",fastMode);f.title="16배속으로 빠르게 진행"}
+}catch(e){}return r}}
+{const _b62=begin;begin=function(){fastMode=false;rate=1;try{return _b62.apply(this,arguments)}finally{render()}}}
+{const _lg62=loadGame;loadGame=function(){const r=_lg62.apply(this,arguments);if(rate>3){fastMode=false;rate=1;render()}return r}}
+/* =========================================================== */
+
+/* ===================== v63: 전투 베기 이펙트 ===================== */
+// battle-slash.gif(검은 배경, 9프레임 ≈ 1초)를 화면 가운데에 'screen' 합성으로 얹어 검은 배경을 투명하게 보이게 한다.
+const SLASH_SRC="battle-slash.gif",SLASH_MS=990;
+let slashBlob=null;
+try{fetch(SLASH_SRC).then(r=>r.ok?r.blob():null).then(b=>{slashBlob=b}).catch(()=>{})}catch(e){}
+function playSlash(){
+ try{
+  if(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  const old=document.getElementById("battleSlash");if(old)old.remove();
+  const img=new Image(),url=slashBlob?URL.createObjectURL(slashBlob):`${SLASH_SRC}?t=${Date.now()}`; // 매번 새 주소로 처음부터 재생
+  img.id="battleSlash";img.alt="";img.setAttribute("aria-hidden","true");
+  img.style.cssText=`position:fixed;left:50%;top:45%;width:min(80vw,436px);height:auto;z-index:10000;pointer-events:none;mix-blend-mode:screen;transform:translate(-50%,-50%) scaleX(${Math.random()<.5?-1:1})`;
+  img.src=url;document.body.appendChild(img);
+  setTimeout(()=>{img.remove();if(slashBlob)URL.revokeObjectURL(url)},SLASH_MS);
+ }catch(e){}
+}
+{const _bt63=battle;battle=function(){const r=_bt63.apply(this,arguments);playSlash();return r}}
 /* =========================================================== */
 </script>
   </body>
