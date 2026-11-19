@@ -10559,6 +10559,11 @@
                 "무장색 패기",
                 "패왕색 패기",
                 "라그니르 (철뢰)",
+                "키코쿠",
+                "시구레",
+                "유바시리",
+                "와도 이치몬지",
+                "엔마",
               ].includes(a),
           ).length * 4;
         return Math.max(0, Math.min(specialCap(), v));
@@ -11035,9 +11040,9 @@
           return 1;
         const inj = p.flags && p.flags.injuredUntil >= p.age ? 0.1 : 0;
         let c = 0.5 + (myPower() - foePower(base)) / 110;
-        const cap = base <= -0.2 ? 0.72 : 0.97; // 최상위 강적은 능력치만으로 확실히 이길 수 없다
+        const cap = (base <= -0.2 ? 0.72 : 0.97) + yubashiriBonus(); // 최상위 강적은 능력치만으로 확실히 이길 수 없다
         c = Math.min(cap, c) + diff().odds - inj;
-        return Math.max(0.03, Math.min(0.97, c));
+        return Math.max(0.03, Math.min(0.97 + yubashiriBonus(), c));
       }
       function oddsText(base) {
         return ` (예상 승률 ${Math.round(winChance(base) * 100)}%)`;
@@ -11086,7 +11091,7 @@
         // 쿠마와의 전투에서는 져도 목숨을 잃지 않는다
         if (/쿠마/.test(String(foe))) nonFatal = true;
         const raw = Math.min(
-            0.97,
+            0.97 + yubashiriBonus(),
             winChance(base, { ignoreRaftelAutoWin }) + bonusChance,
           ),
           floor =
@@ -11401,6 +11406,26 @@
         if (Array.isArray(scenes))
           scenes = scenes.filter((x, i) => i <= sceneIndex || !x || !x._slaveOnly);
         log(`${how} — ${dest.name}에 닿아 자유의 몸이 됨`);
+        // 어린 나이에 풀려나면 돌아갈 집이 없어 고아원에 맡겨진다
+        if (p.age < 16) {
+          p.family = "고아원";
+          p.parentProfile = makeParentProfile("고아원");
+          p.job = "어린이";
+          p.school = false;
+          (p.npcs || []).forEach((n) => {
+            if (n.role === "부모") n.role = "헤어진 부모";
+          });
+          if (!npcsBy((n) => n.title === "고아원 원장").length)
+            makeNpc({
+              role: "은인",
+              title: "고아원 원장",
+              age: ri(40, 60),
+              job: "고아원 원장",
+              rel: ri(50, 78),
+              power: 5,
+            });
+          log(`돌아갈 집이 없어 ${dest.name}의 고아원에 맡겨짐`);
+        }
       }
       PLACE_INFO["성지 마리조아"] =
         "성지 마리조아는 세계를 가로지르는 거대한 대륙 레드라인 꼭대기에 있는 세계정부의 심장입니다. 세계 귀족 천룡인들이 사는 곳으로, 그들의 화려한 저택 아래에서는 세계 각지에서 끌려온 노예들이 일하고 있습니다.";
@@ -17890,6 +17915,7 @@
           major: true,
           minAge: 12,
           key: "sroute_" + p.sRoute.id + "_" + i,
+          tags: /샹크스/.test(String(body)) ? ["Shanks"] : undefined,
           title,
           body,
           choices,
@@ -24318,7 +24344,7 @@
           ) +
           sec(
             "현상금·평판·꿈",
-            `• 해적은 현상금이 오르고 악명이 쌓입니다. 평판은 신분별로 따로 관리됩니다: 악명, 공적, 신뢰도, 사냥 실적, 사회적 지위, 권세. 30·60·90에 신문에 실립니다.<br>• <b>꿈</b>(15세 이후): 해적왕, 세계 최고의 검사, 세계 최고의 의사, 세계일주, 부자, 가족 지키기, 천룡인에게 복수, 세계정부 타도, 해군 영웅, 고향 발전, 평범한 행복. 이루면 전용 엔딩이 나옵니다.<br>• 검사의 꿈: 다즈 보네스(만물의 호흡) → 좀비 류마(명도•슈스이) → 세계 최강의 검사와의 결투. 지거나 미뤄도 몇 년 뒤 재도전할 수 있습니다.`,
+            `• 해적은 현상금이 오르고 악명이 쌓입니다. 평판은 신분별로 따로 관리됩니다: 악명, 공적, 신뢰도, 사냥 실적, 사회적 지위, 권세. 30·60·90에 신문에 실립니다.<br>• <b>꿈</b>(15세 이후): 해적왕, 세계 최고의 검사, 모든 명검 모으기(어릴 적 꿈이 최강의 검사일 때), 세계 최고의 의사, 세계일주, 부자, 가족 지키기, 천룡인에게 복수, 세계정부 타도, 해군 영웅, 고향 발전, 평범한 행복. 이루면 전용 엔딩이 나옵니다.<br>• 검사의 꿈: 다즈 보네스(만물의 호흡) → 좀비 류마(명도•슈스이) → 세계 최강의 검사와의 결투. 지거나 미뤄도 몇 년 뒤 재도전할 수 있습니다.`,
           ) +
           sec(
             "인간관계·가족·후대",
@@ -26831,7 +26857,8 @@ function nationSagaScene(){
   {title:"즉시 도망친다",desc:"성지를 빠져나가 나라로 돌아간다.",run:()=>{if(Math.random()<.8){next();p.flags.wgHunt=true;log("이무를 목격하고 성지에서 도망침")}else{p.health-=ri(15,30);next();p.flags.wgHunt=true;log("도망치다 경비병에게 크게 다쳤지만 간신히 빠져나옴")}}},
   {title:"숨어서 끝까지 지켜본다",desc:"더 많은 것을 알게 되지만 들킬 수 있다.",run:()=>{p.knowledge+=6;if(Math.random()<.35){p.health=0;p.flags.deathCause={type:"이무에게 처형당함",detail:"성지의 벽 너머에서 보아서는 안 될 것을 보았습니다. 그 그림자와 눈이 마주친 순간, 모든 것이 끝났습니다."}}else{next();p.flags.wgHunt=true;log("이무와 오로성의 대화를 엿들은 뒤 성지를 빠져나옴")}}}]};
  if(st===4){
-  if(p.flags.imuDefeated){p.flags.nationStage=99;return null}
+  if(p.flags.imuDefeated){p.flags.nationStage=99;if(!imuBeatenByMe())return null;
+   return {essential:true,major:true,key:"nation_end",tags:["imu"],title:"이미 쓰러뜨린 지배자",body:`세계정부가 ${nm}을(를) 지우려 한다는 소문이 돌았지만, 판게아 성에서는 아무도 움직이지 않았습니다. 세계의 지배자 이무는 이미 당신의 손에 진짜 모습까지 꺾였기 때문입니다. ${nm}의 깃발이 바닷바람에 펄럭였습니다.`,choices:null,effect:()=>{p.happiness+=10;p.reputation+=10;log("이미 이무를 쓰러뜨린 전적이 있어 결전 없이 승리로 처리됨")},summary:"이무와의 결전을 승리로 넘김"}}
   const friend=p.flags.strawHat==="friend";const ch=Math.min(.85,.55+(friend?.2:0)+(p.flags.voidProgress>=7?.05:0));
   return {essential:true,major:true,key:"nation_luffy",tags:["luffy"],title:"밀짚모자에게 보내는 편지",body:`세계정부가 ${nm}을(를) 지우려 한다는 소문이 돌기 시작했습니다. 이무에게 맞설 수 있는 자는 이 바다에 단 한 무리뿐입니다. 당신은 밀짚모자 해적단에게 도움을 청하는 편지를 띄우기로 했습니다.${friend?"\n\n오랜 친구인 루피라면 반드시 와 줄 것입니다.":""}`,choices:[
    {title:"루피에게 도움을 요청한다",desc:`싸우는 것은 당신이 아니라 밀짚모자 해적단이다. (이무를 쓰러뜨릴 가능성 약 ${Math.round(ch*100)}%)`,run:()=>{p.flags.nationStage=99;
@@ -26937,7 +26964,6 @@ function atRaftel(){return !!(p&&p.status==="해적"&&p.flags.laughTaleReached&&
 
 /* ===================== v60: 사망 시 현상금 수배서 + 공유 ===================== */
 const SHARE_URL="https://haejeoklife.com/";
-const THREADS_SHARE_URL=SHARE_URL+"?utm_source=threads"; // 링크 복사 → 쓰레드 유입을 GA에서 구분
 function posterData(cause){
  // 현상금이 있으면 현상금을 크게, 없으면 재산을 크게. 둘 다 있으면 재산을 아래에 함께 적는다.
  const bounty=Math.max(0,Math.floor(p.bounty||0)),wealth=Math.max(0,Math.floor(p.money||0)),real=bounty>0;
@@ -27084,7 +27110,7 @@ function drawWanted(d){
 function moneyText(d){return [d.real?`현상금 ${d.bounty.toLocaleString()} 베리`:"",(!d.real||d.wealth>0)?`재산 ${d.wealth.toLocaleString()} 베리`:""].filter(Boolean).join(" · ")}
 // ── 링크 복사: 카카오톡 외의 앱(인스타·디스코드·문자 등)에 붙여넣기용 ──
 async function copyShareLink(d,btn){
- const text=`💀 [WANTED] ${d.name} — ${moneyText(d)}\n「${d.title}」 향년 ${d.age}세\n원피스 세상에서 너는 어떤 인생을 살까? 나도 해보기 👉 ${THREADS_SHARE_URL}`;
+ const text=`💀 [WANTED] ${d.name} — ${moneyText(d)}\n「${d.title}」 향년 ${d.age}세\n원피스 세상에서 너는 어떤 인생을 살까? 나도 해보기 👉 ${SHARE_URL}`;
  let ok=false;
  try{await navigator.clipboard.writeText(text);ok=true}catch(e){
   const t=document.createElement("textarea");t.value=text;t.setAttribute("readonly","");t.style.cssText="position:fixed;opacity:0";document.body.appendChild(t);t.select();
@@ -27175,6 +27201,24 @@ let fastMode=false;
 {const _lg62=loadGame;loadGame=function(){const r=_lg62.apply(this,arguments);if(rate>3){fastMode=false;rate=1;render()}return r}}
 /* =========================================================== */
 
+/* ===================== v63: 전투 베기 이펙트 ===================== */
+// battle-slash.gif(검은 배경, 9프레임 ≈ 1초)를 화면 가운데에 'screen' 합성으로 얹어 검은 배경을 투명하게 보이게 한다.
+const SLASH_SRC="battle-slash.gif",SLASH_MS=990;
+let slashBlob=null;
+try{fetch(SLASH_SRC).then(r=>r.ok?r.blob():null).then(b=>{slashBlob=b}).catch(()=>{})}catch(e){}
+function playSlash(){
+ try{
+  if(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  const old=document.getElementById("battleSlash");if(old)old.remove();
+  const img=new Image(),url=slashBlob?URL.createObjectURL(slashBlob):`${SLASH_SRC}?t=${Date.now()}`; // 매번 새 주소로 처음부터 재생
+  img.id="battleSlash";img.alt="";img.setAttribute("aria-hidden","true");
+  img.style.cssText=`position:fixed;left:50%;top:45%;width:min(80vw,436px);height:auto;z-index:10000;pointer-events:none;mix-blend-mode:screen;transform:translate(-50%,-50%) scaleX(${Math.random()<.5?-1:1})`;
+  img.src=url;document.body.appendChild(img);
+  setTimeout(()=>{img.remove();if(slashBlob)URL.revokeObjectURL(url)},SLASH_MS);
+ }catch(e){}
+}
+{const _bt63=battle;battle=function(){const r=_bt63.apply(this,arguments);playSlash();return r}}
+/* =========================================================== */
 
 /* ===================== v64: 무투술 전용 사건 ===================== */
 // 어린 시절: 마을 씨름 대회(5~12세), 떠돌이 권법가(13~15세)
@@ -27214,6 +27258,89 @@ function martialScene(){
  return rand(list);
 }
 {const _be64=buildExtraScenes;buildExtraScenes=function(){const r=_be64.apply(this,arguments);try{const s=martialScene();if(s)scenes.push(s)}catch(e){}return r}}
+/* =========================================================== */
+
+/* ===================== v65: 가프·상디와의 만남, 명검 ===================== */
+function yubashiriBonus(){return p&&p.abilities&&p.abilities.includes("유바시리")?0.01:0}
+function addAbility(a){p.abilities=p.abilities||[];if(!p.abilities.includes(a))p.abilities.push(a)}
+
+// ── 해군: 가프와의 만남 (한 번) ──
+function garpScene(){
+ if(p.flags.garpMet||p.status!=="해군"||p.age<18||p.job==="노예"||Math.random()>=.25)return null;
+ return {essential:true,major:true,key:"garp_meet",cooldown:999,title:"해군 영웅 가프와의 만남",
+  body:"지부 훈련장에 전병 봉지를 든 노병이 불쑥 나타났습니다. 해군의 영웅, '주먹의 가프'입니다. 그는 당신의 훈련을 한참 지켜보더니 껄껄 웃었습니다. \"주먹이 제법 쓸 만하구나! 내 주먹을 배워 볼 테냐, 아니면 한번 붙어 볼 테냐?\"",
+  choices:[
+   {title:"'어니스트 임팩트'를 배운다",desc:"가프의 정직한 주먹을 전수받는다. (사용 기술 등록 · 무투술 +40)",run:()=>{p.flags.garpMet=true;addAbility("어니스트 임팩트");sk("무투술",40);p.health-=ri(3,8);achieve("가프에게 어니스트 임팩트를 배움");log("가프에게 '어니스트 임팩트'를 배워 사용 기술에 등록함 (무투술 +40)")}},
+   {title:"가프와 싸운다",desc:"해군의 영웅에게 정면으로 도전한다. 져도 목숨은 잃지 않는다."+oddsText(-.3),run:()=>{p.flags.garpMet=true;if(battle({foe:"해군 영웅 몽키 D. 가프",base:-.3,loseHp:[15,35],nonFatal:true,win:()=>{gainStanding(10);p.reputation+=8;sk("무투술",10)}}))log("해군 영웅 가프와의 대결에서 승리함");else{sk("무투술",5);log("가프의 주먹에 나가떨어졌지만 많은 것을 배움")}}}]};
+}
+// ── 해적·요리사·현상금 사냥꾼·모험가 + 무투술 40 이상: 상디와의 만남 (한 번) ──
+function sanjiScene(){
+ if(p.flags.sanjiMet||!["해적","요리사","현상금 사냥꾼","모험가"].includes(p.job)||skv("무투술")<40||p.age<16||Math.random()>=.25)return null;
+ return {essential:true,major:true,key:"sanji_meet",cooldown:999,title:"'검은다리' 상디와의 만남",
+  body:"항구 식당 뒷문에서 담배를 문 금발의 남자가 시비를 거는 건달들을 손 하나 쓰지 않고 발차기만으로 날려 버렸습니다. '검은다리' 상디입니다. 그는 당신의 몸놀림을 보더니 담배 연기를 내뿜었습니다. \"요리사의 손은 칼을 쥐는 손이지, 싸우는 손이 아니야. 싸움은 다리로 하는 거다. …배워 볼 텐가? 아니면 직접 확인해 볼래?\"",
+  choices:[
+   {title:"'검은다리 유파'를 배운다",desc:"손을 쓰지 않는 발차기 무술을 익힌다. (사용 기술 등록 · 무투술 +30)",run:()=>{p.flags.sanjiMet=true;addAbility("검은다리 유파");sk("무투술",30);if(p.job==="요리사")sk("요리",5);achieve("상디에게 검은다리 유파를 배움");log("상디에게 '검은다리 유파'를 배워 사용 기술에 등록함 (무투술 +30)")}},
+   {title:"상디와 싸운다",desc:"검은다리의 실력을 직접 확인한다. 져도 목숨은 잃지 않는다."+oddsText(-.2),run:()=>{p.flags.sanjiMet=true;if(battle({foe:"'검은다리' 상디",base:-.2,loseHp:[12,30],nonFatal:true,win:()=>{p.reputation+=6;gainStanding(5);sk("무투술",8)}}))log("'검은다리' 상디와의 대결에서 승리함");else{sk("무투술",4);log("상디의 발차기에 쓰러졌지만 많은 것을 배움")}}}]};
+}
+{const _be65=buildExtraScenes;buildExtraScenes=function(){const r=_be65.apply(this,arguments);try{const g=garpScene();if(g)scenes.push(g);const sj=sanjiScene();if(sj)scenes.push(sj)}catch(e){}return r}}
+
+// ── 지출: 검 구입 ──
+const SHOP_SWORDS=[
+ {name:"키코쿠",price:2000000,desc:"와노쿠니의 대업물 명검. 검술 +5",buy:()=>sk("검술",5)},
+ {name:"시구레",price:6000000,desc:"푸른 칼날의 명검. 검술 +10",buy:()=>sk("검술",10)},
+ {name:"유바시리",price:30000000,desc:"가볍고 날렵한 명검. 최대 승률 한도 +1%",buy:()=>{}},
+];
+{const _si65=shopItems;shopItems=function(){const it=_si65.apply(this,arguments);
+ for(const w of SHOP_SWORDS)if(!p.abilities.includes(w.name))it.push({name:`검 — ${w.name}`,price:w.price,desc:`${w.desc} · 사용 기술에 등록된다.`,ok:true,buy:()=>{addAbility(w.name);w.buy();return `명검 '${w.name}'을(를) 손에 넣었습니다. 사용 기술에 등록되었습니다.`}});
+ return it}}
+
+// ── 꿈: 모든 명검 모으기 (10세에 '최강의 검사'를 고른 사람) ──
+const MEIKEN=["키코쿠","시구레","유바시리","명도•슈스이","와도 이치몬지","엔마"];
+DREAMS.blades={name:"모든 명검 모으기",
+ eligible:()=>!!(p.kid&&p.kid.dream==="검사"),
+ progress:()=>MEIKEN.filter(x=>p.abilities.includes(x)).length/MEIKEN.length,
+ done:()=>MEIKEN.every(x=>p.abilities.includes(x)),
+ ending:"천하의 명검을 모두 모은 검사"};
+{const _dp65=dreamPickScene;dreamPickScene=function(){const sc=_dp65.apply(this,arguments);
+ if(sc&&sc.choices&&p.kid&&p.kid.dream==="검사"&&!sc.choices.some(c=>c.title===DREAMS.blades.name)){
+  const c={title:DREAMS.blades.name,desc:`세상의 명검(${MEIKEN.join(", ")})을 모두 손에 넣는다. 좀비 류마와 롤로노아 조로가 가진 검도 있다.`,run:()=>setDream("blades")};
+  sc.choices.splice(Math.max(0,sc.choices.length-1),0,c)}
+ return sc}}
+// 명검을 노리는 사람 앞에는 좀비 류마(슈스이)와 조로(와도 이치몬지·엔마)가 나타난다
+function bladeScene(){
+ if(p.age<(p.flags.bladeNext||0)||Math.random()>=.4)return null;
+ if(!p.abilities.includes("명도•슈스이")&&p.combat>=45)return {essential:true,major:true,key:"blade_ryuma",title:"좀비 류마와의 전투",
+  body:"안개 낀 유령선의 갑판 위, 와노쿠니의 전설적인 사무라이 '검호 류마'의 시체가 그림자를 얻어 되살아났습니다. 그의 허리에는 명검 '슈스이'가 걸려 있습니다. 모든 명검을 모으려면 이 검을 빼놓을 수 없습니다.",
+  choices:[
+   {title:"전설의 검호에게 도전한다",desc:"이기면 '명도•슈스이'를 얻는다. (검술 +50)"+oddsText(-.2),run:()=>{if(battle({foe:"좀비 류마",base:-.2,loseHp:[18,35]})){addAbility("명도•슈스이");sk("검술",50);achieve("명도 슈스이를 손에 넣음");log("좀비 류마를 쓰러뜨리고 명도 슈스이를 손에 넣음")}else p.flags.bladeNext=p.age+ri(2,4)}},
+   {title:"물러난다",desc:"전설의 검호는 아직 버겁다.",run:()=>{p.flags.bladeNext=p.age+ri(2,3);log("좀비 류마와의 승부를 미룸")}}]};
+ if(!(p.abilities.includes("와도 이치몬지")&&p.abilities.includes("엔마"))&&p.combat>=60)return {essential:true,major:true,key:"blade_zoro",tags:["Zoro"],title:"롤로노아 조로와의 결투",
+  body:"세 자루의 검을 찬 초록 머리의 검사가 당신 앞을 막아섰습니다. 롤로노아 조로입니다. 그의 허리에는 하얀 칼집의 '와도 이치몬지'와 검은 칼집의 '엔마'가 꽂혀 있습니다. \"내 검이 탐난다고? 좋아. 이기면 가져가 봐라.\"",
+  choices:[
+   {title:"검을 걸고 결투한다",desc:"이기면 '와도 이치몬지'와 '엔마'를 얻는다. (검술 +20) 져도 목숨은 잃지 않는다."+oddsText(-.3),run:()=>{if(battle({foe:"삼도류 검사 롤로노아 조로",base:-.3,loseHp:[18,38],nonFatal:true})){addAbility("와도 이치몬지");addAbility("엔마");sk("검술",20);achieve("조로에게서 와도 이치몬지와 엔마를 얻음");log("롤로노아 조로를 꺾고 와도 이치몬지와 엔마를 손에 넣음")}else p.flags.bladeNext=p.age+ri(2,4)}},
+   {title:"물러난다",desc:"아직 조로를 넘을 수 없다.",run:()=>{p.flags.bladeNext=p.age+ri(2,3);log("롤로노아 조로와의 결투를 미룸")}}]};
+ return null;
+}
+{const _ds65=dreamScene;dreamScene=function(){const d=p.dream;
+ if(d&&d.id==="blades"&&d.status==="진행"&&!DREAMS.blades.done()&&p.job!=="노예"){const b=bladeScene();if(b)return b}
+ return _ds65.apply(this,arguments)}}
+/* =========================================================== */
+
+/* ===================== v66: 이미 이무를 쓰러뜨렸다면 다시 싸우지 않는다 ===================== */
+// 이무 2막(변신한 이무와 신의 기사단)까지 직접 쓰러뜨린 전적, 또는 니드호그 루트에서 이무를 쓰러뜨린 전적
+function imuBeatenByMe(){return !!p&&(p.flags.imuFinalVictoryAge!=null||(p.flags.nidhoggSagaStage||0)>=4)}
+{const _pk66=pirateKingSagaScene;pirateKingSagaScene=function(){const sc=_pk66.apply(this,arguments);
+ if(sc&&(sc.key==="imu_pirate_king_first"||sc.key==="imu_phase2")&&imuBeatenByMe()&&!p.flags.pirateKingAchieved)
+  return {essential:true,major:true,key:"imu_pirate_king_skip",tags:["imu"],title:"라프텔 이후 — 이미 쓰러뜨린 상대",
+   body:"라프텔의 하늘이 잠시 검게 물들었지만, 이무는 끝내 모습을 드러내지 않았습니다. 이미 한 번 당신에게 진짜 모습까지 꺾인 세계의 지배자에게는 더 이상 맞설 힘이 남아 있지 않았습니다. 원피스로 가는 길을 막는 자는 이제 없습니다.",
+   choices:null,effect:()=>{log("이미 이무를 쓰러뜨린 전적이 있어 결전 없이 승리로 처리됨");pirateKingAward()},summary:"이무와의 결전을 승리로 넘김"};
+ return sc}}
+{const _nh66=nidhoggSagaScene;nidhoggSagaScene=function(){const sc=_nh66.apply(this,arguments);
+ if(sc&&sc.key==="nidhogg_imu_final"&&p.flags.imuFinalVictoryAge!=null)
+  return {essential:true,major:true,key:"nidhogg_imu_final",tags:["imu"],title:"이무와의 전투 — 이미 끝난 싸움",
+   body:"판게아 성의 깊은 곳에 도달했지만, 빈 왕좌는 비어 있었습니다. 세계의 지배자 이무는 이미 당신의 손에 진짜 모습까지 쓰러졌습니다. 니드호그의 힘과 라그니르의 철뢰가 조용히 잦아듭니다.",
+   choices:null,effect:()=>{p.flags.imuDefeated=true;p.flags.nidhoggSagaStage=4;p.reputation=clamp(p.reputation+20);p.happiness=clamp(p.happiness+10);achieve("니드호그의 힘으로 이무를 쓰러뜨림");log("이미 이무를 쓰러뜨린 전적이 있어 결전 없이 니드호그 전용 스토리를 완수함")},summary:"이무와의 결전을 승리로 넘김"};
+ return sc}}
 /* =========================================================== */
 </script>
   </body>
