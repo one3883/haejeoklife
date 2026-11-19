@@ -26937,6 +26937,7 @@ function atRaftel(){return !!(p&&p.status==="해적"&&p.flags.laughTaleReached&&
 
 /* ===================== v60: 사망 시 현상금 수배서 + 공유 ===================== */
 const SHARE_URL="https://haejeoklife.com/";
+const THREADS_SHARE_URL=SHARE_URL+"?utm_source=threads"; // 링크 복사 → 쓰레드 유입을 GA에서 구분
 function posterData(cause){
  // 현상금이 있으면 현상금을 크게, 없으면 재산을 크게. 둘 다 있으면 재산을 아래에 함께 적는다.
  const bounty=Math.max(0,Math.floor(p.bounty||0)),wealth=Math.max(0,Math.floor(p.money||0)),real=bounty>0;
@@ -27083,7 +27084,7 @@ function drawWanted(d){
 function moneyText(d){return [d.real?`현상금 ${d.bounty.toLocaleString()} 베리`:"",(!d.real||d.wealth>0)?`재산 ${d.wealth.toLocaleString()} 베리`:""].filter(Boolean).join(" · ")}
 // ── 링크 복사: 카카오톡 외의 앱(인스타·디스코드·문자 등)에 붙여넣기용 ──
 async function copyShareLink(d,btn){
- const text=`💀 [WANTED] ${d.name} — ${moneyText(d)}\n「${d.title}」 향년 ${d.age}세\n원피스 세상에서 너는 어떤 인생을 살까? 나도 해보기 👉 ${SHARE_URL}`;
+ const text=`💀 [WANTED] ${d.name} — ${moneyText(d)}\n「${d.title}」 향년 ${d.age}세\n원피스 세상에서 너는 어떤 인생을 살까? 나도 해보기 👉 ${THREADS_SHARE_URL}`;
  let ok=false;
  try{await navigator.clipboard.writeText(text);ok=true}catch(e){
   const t=document.createElement("textarea");t.value=text;t.setAttribute("readonly","");t.style.cssText="position:fixed;opacity:0";document.body.appendChild(t);t.select();
