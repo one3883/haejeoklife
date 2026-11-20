@@ -26989,13 +26989,6 @@ function posterData(cause){
  return {name:p.name,age:realAge(),title:endingTitle(cause),cause:cause.type,real,value,bounty,wealth,rows,events,
   race:p.race,pirate:p.status==="해적",noble:p.status==="천룡인"};
 }
-// 수배서 등급: 현상금이 있으면 현상금으로, 없으면 재산으로 S~E 등급을 매긴다 (공유·비교용)
-function posterRank(d){
- const T=d.real
-  ?[[3e9,"S","사황급"],[1e9,"A","대해적급"],[3e8,"B","초신성급"],[1e8,"C","억대 현상범"],[3e7,"D","신인 해적"],[0,"E","잔챙이"]]
-  :[[1e7,"S","세계 갑부"],[1e6,"A","대부호"],[2e5,"B","부자"],[5e4,"C","중산층"],[5e3,"D","서민"],[0,"E","빈털터리"]];
- const r=T.find(([min])=>d.value>=min);return {grade:r[1],label:r[2]};
-}
 // 종족별 실루엣. 머리 위치를 돌려주면 모자·버블 헬멧을 그 위에 얹는다.
 function drawSilhouette(g,d,cx,py,ph){
  const C="#4a2c15",L="rgba(201,176,122,.55)";if(d.race==="소인족")cx-=90;g.fillStyle=C;g.strokeStyle=C;g.lineCap="round";g.lineJoin="round";
@@ -27086,15 +27079,6 @@ function drawWanted(d){
  g.fillStyle="rgba(236,217,168,.8)";g.fillRect(-118,-46,236,92);g.strokeStyle=g.fillStyle="rgba(178,28,20,.95)";
  g.strokeRect(-118,-46,236,92);g.lineWidth=2;g.strokeRect(-108,-36,216,72);g.textAlign="center";g.textBaseline="middle";g.font=`900 44px ${KR}`;g.fillText("사 망",0,-6);
  g.font=`900 26px ${KR}`;g.fillText(`향년 ${d.age}세`,0,24);g.restore();
- // 등급 도장 (사진 왼쪽 위)
- const rk=posterRank(d);
- g.save();g.translate(px+92,py+92);g.rotate(-0.16);
- g.fillStyle="rgba(236,217,168,.82)";g.beginPath();g.arc(0,0,76,0,7);g.fill();
- g.strokeStyle=g.fillStyle="rgba(178,28,20,.95)";g.lineWidth=6;g.beginPath();g.arc(0,0,76,0,7);g.stroke();
- g.lineWidth=2;g.beginPath();g.arc(0,0,66,0,7);g.stroke();
- g.textAlign="center";g.textBaseline="alphabetic";g.font=`900 74px ${SERIF}`;g.fillText(rk.grade,-12,18);
- g.font=`900 30px ${KR}`;g.fillText("급",34,16);
- fit(rk.label,`900 {s}px ${KR}`,22,104);g.fillText(rk.label,0,48);g.restore();
  // DEAD OR ALIVE · 이름 · 현상금
  center("DEAD  OR  ALIVE",648,`700 {s}px ${SERIF}`,50,W-140);
  center(d.name,734,`900 {s}px ${KR}`,72,W-130);
@@ -27126,13 +27110,13 @@ function drawWanted(d){
   ev.forEach((t,i)=>{const y=evTop+22+30*(i+1);g.fillStyle="#7a5228";g.font=`700 19px ${KR}`;g.fillText("•",tx+2,y);
    fit(t,`600 {s}px ${KR}`,20,W-tx-120);g.fillStyle="#4e3218";g.fillText(t,tx+22,y)});
  }
+ c._ev={top:evTop,h:evH}; // 카카오 공유 이미지에서 '인생의 주요 사건' 부분을 떼어 쓰기 위한 위치
  return c;
 }
 function moneyText(d){return [d.real?`현상금 ${d.bounty.toLocaleString()} 베리`:"",(!d.real||d.wealth>0)?`재산 ${d.wealth.toLocaleString()} 베리`:""].filter(Boolean).join(" · ")}
 // ── 링크 복사: 카카오톡 외의 앱(인스타·디스코드·문자 등)에 붙여넣기용 ──
 async function copyShareLink(d,btn){
- const rk=posterRank(d);
- const text=`💀 [WANTED] ${d.name} — ${rk.grade}급 ${rk.label}\n${moneyText(d)}\n「${d.title}」 향년 ${d.age}세\n나는 ${rk.grade}급 인생. 너는 몇 급일까? 👉 ${SHARE_URL}`;
+ const text=`💀 [WANTED] ${d.name} — ${moneyText(d)}\n「${d.title}」 향년 ${d.age}세\n원피스 세상에서 너는 어떤 인생을 살까? 나도 해보기 👉 ${SHARE_URL}`;
  let ok=false;
  try{await navigator.clipboard.writeText(text);ok=true}catch(e){
   const t=document.createElement("textarea");t.value=text;t.setAttribute("readonly","");t.style.cssText="position:fixed;opacity:0";document.body.appendChild(t);t.select();
@@ -27144,13 +27128,18 @@ async function copyShareLink(d,btn){
 // ── 카카오톡 공유: 수배서를 Kakao 서버에 올린 뒤 피드 템플릿으로 보낸다 ──
 const KAKAO_JS_KEY="6ceb5c8383c04f5832d0c2fe1352e9c7";
 function kakaoReady(){const K=window.Kakao;if(!K)return null;try{if(!K.isInitialized())K.init(KAKAO_JS_KEY)}catch(e){return null}return K}
-// 카카오 피드용: 여백 없이 꽉 차도록 수배서 윗부분(WANTED·사진·이름·금액)만 약 3:4로 잘라 쓴다.
-// 잘린 아래쪽에는 원본 수배서의 맨 아래 테두리 부분을 이어 붙여 종이가 자연스럽게 닫히게 한다.
+// 카카오 피드용: 여백 없이 꽉 차도록 수배서 윗부분(WANTED·사진·이름·금액)을 잘라 쓰고,
+// 그 아래에 '인생의 주요 사건'을 이어 붙인 뒤, 원본 수배서의 맨 아래 테두리로 종이를 닫는다.
 function kakaoFrame(cv,d){
  const dy=d.real&&d.wealth>0?40:0,top=880+dy,foot=48,W=cv.width;
- const c=document.createElement("canvas");c.width=W;c.height=top+foot;const g=c.getContext("2d");
+ const ev=cv._ev&&cv._ev.h?{y:cv._ev.top,h:cv._ev.h+4}:null,gap=ev?14:0,evH=ev?ev.h+gap:0;
+ const c=document.createElement("canvas");c.width=W;c.height=top+evH+foot;const g=c.getContext("2d");
  g.drawImage(cv,0,0,W,top,0,0,W,top);
- g.drawImage(cv,0,cv.height-foot,W,foot,0,top,W,foot);
+ if(ev){
+  g.drawImage(cv,0,ev.y-gap,W,ev.h+gap,0,top,W,ev.h+gap);
+  g.strokeStyle="#3a2210";g.lineWidth=2;g.beginPath();g.moveTo(80,top+1);g.lineTo(W-80,top+1);g.stroke(); // 이어 붙인 경계를 구분선으로 정리
+ }
+ g.drawImage(cv,0,cv.height-foot,W,foot,0,top+evH,W,foot);
  return c;
 }
 async function shareKakao(cv,d,btn){
@@ -27161,11 +27150,11 @@ async function shareKakao(cv,d,btn){
   const blob=await new Promise(r=>kakaoFrame(cv,d).toBlob(r,"image/jpeg",0.9));
   const res=await K.Share.uploadImage({file:[new File([blob],"wanted.jpg",{type:"image/jpeg"})]});
   const img=res.infos.original;
-  const link={mobileWebUrl:SHARE_URL,webUrl:SHARE_URL},rk=posterRank(d);
+  const link={mobileWebUrl:SHARE_URL,webUrl:SHARE_URL};
   K.Share.sendDefault({objectType:"feed",
-   content:{title:`[WANTED] ${d.name} — ${rk.grade}급 ${rk.label}`,description:`${moneyText(d)} · 「${d.title}」 향년 ${d.age}세\n나는 ${rk.grade}급 인생. 너는 몇 급일까?`,
+   content:{title:`[WANTED] ${d.name} — ${moneyText(d)}`,description:`「${d.title}」 향년 ${d.age}세 · 원피스 세상에서 너는 어떤 인생을 살까?`,
     imageUrl:img.url,imageWidth:img.width,imageHeight:img.height,link},
-   buttons:[{title:"내 등급 확인하기",link}]});
+   buttons:[{title:"나도 해보기",link}]});
  }catch(e){console.error("kakao share",e);alert("카카오톡 공유에 실패했어요. 잠시 후 다시 시도해 주세요.")}
  finally{btn.disabled=false;btn.textContent=label}
 }
