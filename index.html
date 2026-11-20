@@ -23,7 +23,7 @@
       integrity="sha384-DKYJZ8NLiK8MN4/C5P2dtSmLQ4KwPaoqAfyA/DfmEc1VDxu4yyC7wy6K1Hs90nka"
       crossorigin="anonymous"
     ></script>
-    <title>원피스 인생게임 — ONE PIECE LIFE 바다 위의 인생 시뮬레이션</title>
+    <title>원피스 인생게임 — ONE PIECE LIFE</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏴‍☠️</text></svg>" />
     <meta
       name="description"
@@ -26987,7 +26987,76 @@ function posterData(cause){
  const major=ach.filter(x=>!x.minor).slice(-4),minor=ach.filter(x=>x.minor).slice(-(4-major.length)||ach.length);
  const events=major.concat(major.length<4?minor:[]).sort((a,b)=>a.i-b.i).map(x=>x.t);
  return {name:p.name,age:realAge(),title:endingTitle(cause),cause:cause.type,real,value,bounty,wealth,rows,events,
-  race:p.race,pirate:p.status==="해적",noble:p.status==="천룡인"};
+  race:p.race,pirate:p.status==="해적",noble:p.status==="천룡인",
+  place:bp.name||bp.sea||"",job:jobTitle(),crew:p.crew||"",fruit:p.fruit||"",dreamName:D?D.name:"",dreamStatus:D?p.dream.status:"",
+  partner:p.partner||"",kids:+p.children||0,status:p.status||"",family:p.family||""};
+}
+// ── 수배서 '생애 기록': 어떻게 살다 갔는지 짧고 재밌게 ──
+function jo(w,a,b){const c=String(w).charCodeAt(String(w).length-1)-0xAC00;return c>=0&&c<11172&&c%28>0?a:b}
+function joRo(w){const c=String(w).charCodeAt(String(w).length-1)-0xAC00;return c>=0&&c<11172&&c%28>0&&c%28!==8?"으로":"로"}
+function berryKo(n){
+ if(n>=1e8){const e=Math.floor(n/1e8),m=Math.floor(n%1e8/1e4);return `${e.toLocaleString()}억${m?` ${m.toLocaleString()}만`:""} 베리`}
+ if(n>=1e4){const m=Math.floor(n/1e4),r=n%1e4;return `${m.toLocaleString()}만${r?` ${r.toLocaleString()}`:""} 베리`}
+ return `${n.toLocaleString()} 베리`;
+}
+function lifeStory(d){
+ const pick=a=>a[Math.floor(Math.random()*a.length)],kid=d.age<13,place=d.place||"어느 바닷가 마을",cause=String(d.cause||"");
+ // 1) 태어나서 몇 년
+ const open=d.age<=1?`${place}에서 태어나 첫 돌도 못 넘겼다.`
+  :kid?pick([`${place}에서 태어나 고작 ${d.age}년을 살았다.`,`${place}의 골목을 뛰어다니던 꼬마, 딱 ${d.age}년을 살았다.`])
+  :d.age<30?pick([`${place}에서 태어나 짧고 굵게 ${d.age}년을 살았다.`,`${place} 출신, 불꽃처럼 ${d.age}년을 태웠다.`])
+  :d.age<60?pick([`${place}에서 태어나 파란만장한 ${d.age}년을 살았다.`,`${place}에서 태어나 바람 잘 날 없는 ${d.age}년을 보냈다.`])
+  :pick([`${place}에서 태어나 질기게도 ${d.age}년을 버텼다.`,`${place}에서 태어나 산전수전 다 겪고 ${d.age}년을 살았다.`]);
+ // 2) 무엇을 하며 살았나
+ let who="";
+ if(!kid){
+  if(d.noble)who=pick(["평생 남의 등에 업혀 다녔고, 버블 헬멧 밖 공기는 끝내 마셔보지 않았다.","걸어 다닐 일이 없어 다리 근육이 남아나지 않았다."]);
+  else if(/노예/.test(d.status))who="족쇄를 찬 채로도 자유를 꿈꾸는 걸 멈추지 않았다.";
+  else if(d.pirate)who=d.crew?`${d.crew}의 깃발 아래 바다를 휘젓고 다녔다.`:"해적이랍시고 배를 탔지만 동료는 끝내 모으지 못했다.";
+  else if(d.job)who=`${d.job}${joRo(d.job)} 밥벌이를 했다.`+(d.family==="가난한 가정"?" 맨손으로 시작한 인생이었다.":"");
+ }
+ const fruit=d.fruit?pick([`${d.fruit}${jo(d.fruit,"을","를")} 먹은 뒤로 평생 목욕도 조심조심 했다.`,`${d.fruit}${jo(d.fruit,"을","를")} 먹고 바다의 미움을 샀다.`]):"";
+ const love=!kid&&(d.partner||d.kids)?(d.partner?`${d.partner}${jo(d.partner,"과","와")} 함께한 날들이 제일 따뜻했다.`:"")+(d.kids?`${d.partner?" ":""}자식 ${d.kids}명을 세상에 남겼다.`:""):"";
+ // 3) 돈
+ const b=d.bounty,w=d.wealth;
+ const money=b>=1e9?`목에 걸린 돈만 ${berryKo(b)}. 세계정부가 밤잠을 설쳤다.`
+  :b>=1e8?`현상금 ${berryKo(b)}. 가는 술집마다 얼굴이 붙어 있었다.`
+  :b>0?`현상금 ${berryKo(b)}. 동네에서는 나름 유명 인사였다.`
+  :w>=1e6?`모은 돈 ${berryKo(w)}. 저승까지 들고 가진 못했다.`
+  :w>=1e4?"먹고살 걱정은 없을 만큼 벌었다."
+  :kid&&w<1000?`전 재산 ${w.toLocaleString()} 베리. 사탕 몇 개 값이다.`
+  :w<1000?`남긴 돈 ${w.toLocaleString()} 베리. 장례비도 안 된다.`
+  :"가진 건 많지 않았지만 굶지는 않았다.";
+ // 4) 꿈
+ const dream=!d.dreamName?(kid?"":"꿈 하나 정하지 못한 채 흘러가듯 살았다.")
+  :d.dreamStatus==="달성"?`꿈이던 '${d.dreamName}', 끝내 이뤄냈다.`
+  :d.dreamStatus==="진행"?`'${d.dreamName}'의 꿈은 바다 위에 두고 갔다.`
+  :`'${d.dreamName}'의 꿈은 ${d.dreamStatus}${joRo(d.dreamStatus)} 끝났다.`;
+ // 5) 마지막
+ const end=/영아/.test(cause)?"세상 구경을 채 하기도 전에 눈을 감았다."
+  :/노환/.test(cause)?"마지막은 따뜻한 침대 위였다. 이 바다에서는 보기 드문 복이다."
+  :/천룡인/.test(cause)?"천룡인의 변덕 한 번에 모든 게 끝났다. 세상은 불공평하다."
+  :/난파|수몰/.test(cause)?"바다에서 왔다가 바다로 돌아갔다."
+  :/노동/.test(cause)?"죽는 날까지 일만 했다. 진짜로."
+  :/탈출/.test(cause)?"자유를 향해 뛰었지만 딱 한 발이 모자랐다."
+  :/악마의 열매/.test(cause)?"열매의 힘을 끝내 감당하지 못했다."
+  :/사고/.test(cause)?"어이없는 사고 한 번에 모든 게 끝났다."
+  :/전투|교전|결전|전사|습격|암살/.test(cause)?`마지막은 ${cause}. 끝까지 등을 보이지 않았다.`
+  :/병$/.test(cause)?`${cause}${jo(cause,"이","가")} 끝내 발목을 잡았다.`+(kid?" 너무 일찍 진 꽃이었다.":"")
+  :`마지막은 ${cause}.`;
+ // 꼭 넣을 것: 시작·돈·꿈·마지막. 나머지는 6문장까지 채운다
+ const out=[open];for(const s of [who,fruit,love])if(s&&out.length<3)out.push(s);
+ return out.concat([money,dream,end]).filter(Boolean);
+}
+function wrapText(g,t,maxW){
+ const lines=[];let cur="";
+ for(const word of t.split(" ")){
+  const next=cur?cur+" "+word:word;
+  if(g.measureText(next).width<=maxW){cur=next;continue}
+  if(cur)lines.push(cur);cur="";
+  for(const ch of word){if(g.measureText(cur+ch).width>maxW){lines.push(cur);cur=ch}else cur+=ch}
+ }
+ if(cur)lines.push(cur);return lines;
 }
 // 수배서 등급: 현상금이 있으면 현상금으로, 없으면 재산으로 S~E 등급을 매긴다 (공유·비교용)
 function posterRank(d){
@@ -27061,11 +27130,14 @@ function drawSilhouette(g,d,cx,py,ph){
 }
 function drawWanted(d){
  const both=d.real&&d.wealth>0,dy=both?40:0;
- // 세로 배치를 먼저 계산해서 사건 수에 맞게 종이 길이를 정한다
- const ev=d.events||[],tblTop=968+dy,rh=Math.min(44,Math.floor(270/d.rows.length)),tblBottom=tblTop+rh*d.rows.length+12;
- const evTop=tblBottom+16,evH=ev.length?34+ev.length*30:0;
- const W=720,H=evTop+evH+172,c=document.createElement("canvas");c.width=W;c.height=H;const g=c.getContext("2d");
+ const W=720,c=document.createElement("canvas");c.width=W;const g=c.getContext("2d");
  const SERIF='Georgia,"Times New Roman",serif',KR='"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif',INK="#3a2210";
+ // 세로 배치를 먼저 계산한다: 생애 기록 문장을 줄바꿈해 보고, 사건 수까지 더해 종이 길이를 정한다
+ const tx=96,SF=`600 24px ${KR}`,LH=36,PG=10;
+ g.font=SF;const story=lifeStory(d).map(s=>wrapText(g,s,W-2*tx));
+ const tblTop=968+dy,storyH=story.reduce((h,ls)=>h+ls.length*LH+PG,0)+22,tblBottom=tblTop+storyH;
+ const ev=d.events||[],evTop=tblBottom+16,evH=ev.length?34+ev.length*30:0;
+ const H=evTop+evH+64;c.height=H;
  const fit=(t,font,size,maxW,min=14)=>{let s=size;do{g.font=font.replace("{s}",s);if(g.measureText(t).width<=maxW)break;s-=2}while(s>min);return s};
  const center=(t,y,font,size,maxW,color=INK)=>{fit(t,font,size,maxW);g.fillStyle=color;g.textAlign="center";g.textBaseline="alphabetic";g.fillText(t,W/2,y)};
  // 낡은 종이
@@ -27113,23 +27185,16 @@ function drawWanted(d){
  // 엔딩 칭호
  g.strokeStyle=INK;g.lineWidth=2;g.beginPath();g.moveTo(80,890+dy);g.lineTo(W-80,890+dy);g.stroke();
  center(`「${d.title}」  향년 ${d.age}세`,938+dy,`800 {s}px ${KR}`,34,W-130);
- // 인생 요약표
- const tx=96,vx=196,top=tblTop;
- g.fillStyle="rgba(255,248,225,.35)";g.fillRect(tx-14,top,W-2*(tx-14),rh*d.rows.length+12);
- d.rows.forEach(([k,v],i)=>{const y=top+rh*(i+1)-4;g.textAlign="left";g.textBaseline="alphabetic";
-  g.fillStyle="#7a5228";g.font=`800 22px ${KR}`;g.fillText(k,tx,y);
-  fit(String(v),`700 {s}px ${KR}`,25,W-vx-96);g.fillStyle=INK;g.fillText(String(v),vx,y);
-  if(i<d.rows.length-1){g.strokeStyle="rgba(58,34,16,.18)";g.lineWidth=1;g.beginPath();g.moveTo(tx,y+12);g.lineTo(W-tx,y+12);g.stroke()}});
+ // 생애 기록: 어떻게 살다 갔는지
+ g.fillStyle="rgba(255,248,225,.35)";g.fillRect(tx-14,tblTop,W-2*(tx-14),storyH);
+ g.textAlign="left";g.textBaseline="alphabetic";g.font=SF;g.fillStyle=INK;
+ let sy=tblTop+14;story.forEach(ls=>{ls.forEach(l=>{sy+=LH;g.fillText(l,tx,sy-8)});sy+=PG});
  // 주요 사건 (표 아래, 더 작게)
  if(ev.length){
   g.textAlign="left";g.textBaseline="alphabetic";g.fillStyle="#7a5228";g.font=`800 19px ${KR}`;g.fillText("인생의 주요 사건",tx,evTop+22);
   ev.forEach((t,i)=>{const y=evTop+22+30*(i+1);g.fillStyle="#7a5228";g.font=`700 19px ${KR}`;g.fillText("•",tx+2,y);
    fit(t,`600 {s}px ${KR}`,20,W-tx-120);g.fillStyle="#4e3218";g.fillText(t,tx+22,y)});
  }
- // 맨 아래: 사이트 주소를 크게 새긴다
- g.strokeStyle=INK;g.lineWidth=2;g.beginPath();g.moveTo(80,H-162);g.lineTo(W-80,H-162);g.stroke();
- center(`나는 ${rk.grade}급 인생. 너는 몇 급일까?`,H-116,`800 {s}px ${KR}`,30,W-140,"#b21c14");
- center("haejeoklife.com",H-58,`900 {s}px ${SERIF}`,58,W-120);
  return c;
 }
 function moneyText(d){return [d.real?`현상금 ${d.bounty.toLocaleString()} 베리`:"",(!d.real||d.wealth>0)?`재산 ${d.wealth.toLocaleString()} 베리`:""].filter(Boolean).join(" · ")}
