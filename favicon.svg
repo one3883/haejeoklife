@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#16212e"/>
+  <g fill="#f4ecd8">
+    <g transform="rotate(35 32 42)">
+      <rect x="9" y="39.5" width="46" height="5" rx="2.5"/>
+      <circle cx="9.5" cy="39" r="3.2"/><circle cx="9.5" cy="45" r="3.2"/>
+      <circle cx="54.5" cy="39" r="3.2"/><circle cx="54.5" cy="45" r="3.2"/>
+    </g>
+    <g transform="rotate(-35 32 42)">
+      <rect x="9" y="39.5" width="46" height="5" rx="2.5"/>
+      <circle cx="9.5" cy="39" r="3.2"/><circle cx="9.5" cy="45" r="3.2"/>
+      <circle cx="54.5" cy="39" r="3.2"/><circle cx="54.5" cy="45" r="3.2"/>
+    </g>
+    <circle cx="32" cy="26" r="15"/>
+    <rect x="23.5" y="32" width="17" height="13" rx="4"/>
+  </g>
+  <g fill="#16212e">
+    <ellipse cx="26" cy="27" rx="4.2" ry="4.8"/>
+    <ellipse cx="38" cy="27" rx="4.2" ry="4.8"/>
+    <path d="M32 32.5 l-2.6 4.2 h5.2z"/>
+    <rect x="27.6" y="40.5" width="1.8" height="4.5" rx=".9"/>
+    <rect x="31.1" y="40.5" width="1.8" height="4.5" rx=".9"/>
+    <rect x="34.6" y="40.5" width="1.8" height="4.5" rx=".9"/>
+  </g>
+</svg>
