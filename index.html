@@ -27137,12 +27137,21 @@ async function copyShareLink(d,btn){
 // ── 카카오톡 공유: 수배서를 Kakao 서버에 올린 뒤 피드 템플릿으로 보낸다 ──
 const KAKAO_JS_KEY="6ceb5c8383c04f5832d0c2fe1352e9c7";
 function kakaoReady(){const K=window.Kakao;if(!K)return null;try{if(!K.isInitialized())K.init(KAKAO_JS_KEY)}catch(e){return null}return K}
+// 세로로 긴 수배서가 카카오 피드에서 잘리지 않도록, 정사각형 배경 가운데에 축소해서 통째로 넣는다
+function kakaoFrame(cv){
+ const S=Math.max(cv.width,cv.height),pad=Math.round(S*0.04),inner=S-pad*2;
+ const k=Math.min(inner/cv.width,inner/cv.height),w=Math.round(cv.width*k),h=Math.round(cv.height*k);
+ const c=document.createElement("canvas");c.width=S;c.height=S;const g=c.getContext("2d");
+ g.fillStyle="#2b1a0d";g.fillRect(0,0,S,S);
+ g.drawImage(cv,Math.round((S-w)/2),Math.round((S-h)/2),w,h);
+ return c;
+}
 async function shareKakao(cv,d,btn){
  const K=kakaoReady();
  if(!K){alert("카카오톡 공유 기능을 불러오지 못했어요. 인터넷 연결을 확인하고 잠시 후 다시 눌러 주세요.");return}
  const label=btn.textContent;btn.disabled=true;btn.textContent="수배서 올리는 중…";
  try{
-  const blob=await new Promise(r=>cv.toBlob(r,"image/jpeg",0.9));
+  const blob=await new Promise(r=>kakaoFrame(cv).toBlob(r,"image/jpeg",0.9));
   const res=await K.Share.uploadImage({file:[new File([blob],"wanted.jpg",{type:"image/jpeg"})]});
   const img=res.infos.original;
   const link={mobileWebUrl:SHARE_URL,webUrl:SHARE_URL};
