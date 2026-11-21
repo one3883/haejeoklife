@@ -574,11 +574,24 @@
             ><input id="charName" maxlength="12" autocomplete="off" placeholder="비워 두면 무작위로 정해집니다" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:inherit;font:inherit" />
           </div>
           <div class="field">
+            <label>악마의 열매</label
+            ><select id="charFruit">
+              <option value="">운명에 맡긴다</option>
+            </select>
+          </div>
+          <div class="field">
             <label>성별</label
             ><select id="gender">
               <option>무작위</option>
               <option>남성</option>
               <option>여성</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>그림</label
+            ><select id="artSetting">
+              <option value="on">켜기</option>
+              <option value="off">끄기</option>
             </select>
           </div>
           <div class="field">
@@ -643,6 +656,12 @@
                     onclick="setShowArt(!showArt)"
                   >
                     그림: 켜짐</button
+                  ><button
+                    class="btn secondary"
+                    id="tacBtn"
+                    onclick="setTacOn(!tacOn)"
+                  >
+                    ⚔️ 전략 전투: 켜짐</button
                   ><button
                     class="btn secondary"
                     id="autoBtn"
@@ -2197,11 +2216,14 @@
             b.onclick = () => {
               if (!awaiting || lock) return;
               awaiting = false;
+              // v66 전략 전투: 선택 안에서 전투가 시작되면 턴제 전투를 먼저 치르고 같은 선택을 다시 실행한다
+              const _proceed = () => {
               p.recentChoices.unshift(c.title);
               p.recentChoices = p.recentChoices.slice(0, 8);
               const _b = snapLife(),
                 _src = String(c.run);
-              c.run();
+              if (typeof tacRunChoice === "function") tacRunChoice(c);
+              else c.run();
               const _tr = traitFrom(c, _src);
               normalize();
               const _la = lastArchive();
@@ -2223,6 +2245,9 @@
               }
               if (c.after) c.after();
               else finishScene();
+              };
+              if (typeof tacGuardChoice === "function") tacGuardChoice(_proceed);
+              else _proceed();
             };
             $("choices").appendChild(b);
           });
@@ -2767,23 +2792,7 @@
                 ) {
                   eatSmile();
                 } else {
-                  p.fruit = fruit;
-                  p.fruitGrade = fruitGrade(fruit);
-                  p.fruitMastery = 0;
-                  p.fruitCount = 1;
-                  p.abilities.push(fruit + " [" + p.fruitGrade + "]");
-                  p.combat = clamp(
-                    p.combat +
-                      {
-                        S: ri(20, 30),
-                        A: ri(14, 20),
-                        B: ri(9, 14),
-                        C: ri(5, 9),
-                      }[p.fruitGrade],
-                  );
-                  p.happiness = clamp(p.happiness + 3);
-                  log(`${fruit}(${p.fruitGrade}등급)을(를) 먹고 능력을 얻음`);
-                  fruitAfterEat();
+                  eatFirstFruit(fruit);
                 }
               },
             },
@@ -3475,7 +3484,7 @@
         return ` (예상 승률 ${Math.round(Math.max(raw, floor) * 100)}%)`;
       }
       function pirateKingSagaCooldown() {
-        const gap = ri(4, 8);
+        const gap = ri(2, 6); // 해적왕 루트 사건 사이 간격은 최대 6년
         p.flags.pirateKingSagaNextAge = p.age + gap;
         return gap;
       }
@@ -6144,7 +6153,7 @@
       /* ===================== v15 추가 시스템 ===================== */
       // ── 1. 사건 중복 억제 ──
       // 같은 사건(제목·id 기준)은 쿨다운 동안 다시 나오지 않는다. 다만 REPEAT_CHANCE 확률로 가끔은 반복을 허용한다.
-      const REPEAT_CHANCE = 0.15;
+      const REPEAT_CHANCE = 0.04; // 같은 사건 반복 허용 확률 (예전 15%)
       function sceneKey(s) {
         return s.key || s.id || s.title;
       }
@@ -6174,9 +6183,9 @@
             !s.choices &&
             !s.essential &&
             p.seenScenes[k] !== undefined &&
-            p.age - p.seenScenes[k] <= 1
+            p.age - p.seenScenes[k] <= 3
           )
-            continue; // 자동 사건은 다음 해까지 다시 나오지 않는다
+            continue; // 자동 사건은 3년 동안 다시 나오지 않는다
           if (MIN_AGE[k] !== undefined && s.minAge === undefined)
             s.minAge = MIN_AGE[k];
           const min = s.minAge ?? (s.choices ? 13 : 0);
@@ -6186,7 +6195,7 @@
           }
           if (!s.essential && !s.promotion) {
             const last = p.seenScenes[k],
-              cd = s.cooldown ?? 6;
+              cd = Math.max(4, s.cooldown ?? 8); // 같은 사건은 최소 4년, 기본 8년 간격
             if (
               last !== undefined &&
               p.age - last < cd &&
@@ -6261,7 +6270,7 @@
         return (p.birthYear || 1500) + realAge();
       }
       function pickBirthYear() {
-        return ri(1503, 1507);
+        return ri(1500, 1506);
         const v = $("era") ? $("era").value : "random";
         if (v === "roger") return ri(1470, 1499);
         if (v === "golden") return ri(1500, 1518);
@@ -10579,7 +10588,7 @@
                 "키코쿠",
                 "시구레",
                 "유바시리",
-                "와도 이치몬지",
+                "화도 일문자",
                 "엔마",
               ].includes(a),
           ).length * 4;
@@ -11106,6 +11115,10 @@
         extra: bonusChance = 0,
       }) {
         // 쿠마와의 전투에서는 져도 목숨을 잃지 않는다
+        // v66 전략 전투: 다시 실행할 때는 턴제 전투를 치른 상대 이름을 그대로 쓴다
+        const _tacPeek =
+          typeof tacBattlePeek === "function" ? tacBattlePeek(foe, base) : null;
+        if (_tacPeek && _tacPeek.foe) foe = _tacPeek.foe;
         if (/쿠마/.test(String(foe))) nonFatal = true;
         const raw = Math.min(
             0.97 + yubashiriBonus(),
@@ -11120,7 +11133,12 @@
           cb = Math.round(p.combat),
           sp = specialPower(),
           beforeHealth = p.health;
-        const ok = Math.random() < ch;
+        // v66 전략 전투: 승패를 정하는 굴림만 턴제 전투 결과로 대신한다 (전략 전투가 꺼져 있거나 자동 사건이면 기존 굴림)
+        const _tac =
+          typeof tacBattleHook === "function"
+            ? tacBattleHook({ foe, base, ch, nonFatal })
+            : null;
+        const ok = _tac ? !!_tac.won : Math.random() < ch;
         const fp = foePower(base),
           mp = myPower();
         let extra = "";
@@ -11223,7 +11241,7 @@
           tags: (scenes[sceneIndex] && scenes[sceneIndex].tags) || undefined,
           key: "battle_" + Math.random(),
           title: ok ? `전투 승리 — ${foe}` : `전투 패배 — ${foe}`,
-          body: `${foe}${wa(foe)}의 전투가 벌어졌습니다.\n당신의 전투력 ${cb} · 특수 능력치 ${sp}${comboBonus() ? ` · 능력 조합 보정 +${Math.round(comboBonus() * 100)}%` : ""} → 승리 확률 ${pct}%${nonFatal && !ok ? "\n\n이번 결전에서 패배했지만 목숨은 건졌습니다. 부상을 치료하고 다시 도전할 수 있습니다." : ""}\n\n${ok ? "치열한 공방 끝에 상대를 쓰러뜨렸습니다!" : "상대의 힘에 밀려 쓰러지고 말았습니다."}${extra}`,
+          body: `${foe}${wa(foe)}의 전투가 벌어졌습니다.\n당신의 전투력 ${cb} · 특수 능력치 ${sp}${comboBonus() ? ` · 능력 조합 보정 +${Math.round(comboBonus() * 100)}%` : ""} → 승리 확률 ${pct}%${nonFatal && !ok ? "\n\n이번 결전에서 패배했지만 목숨은 건졌습니다. 부상을 치료하고 다시 도전할 수 있습니다." : ""}\n\n${ok ? "치열한 공방 끝에 상대를 쓰러뜨렸습니다!" : "상대의 힘에 밀려 쓰러지고 말았습니다."}${_tac && _tac.note ? "\n\n" + _tac.note : ""}${extra}`,
           choices: null,
           effect: () => {},
           summary: null,
@@ -16083,6 +16101,20 @@
               },
             ],
           });
+        if (f === "힘힘 열매" && !p.flags.powerSwim)
+          pool.push({
+            essential: true,
+            key: "powerpower_swim",
+            title: "바다를 헤엄치다",
+            body: "발을 헛디뎌 바다에 풍덩 빠지고 말았습니다. 악마의 열매 능력자는 바다에 빠지면 온몸에 힘이 빠져 가라앉는다고 들었는데… 이상합니다. 팔다리가 멀쩡히 움직입니다.\n\n허우적거리던 손발이 어느새 물을 가르고, 당신은 헤엄쳐서 뭍으로 올라왔습니다.\n\n\"어, 어째서 수영이 가능한 거지?!\"\n\n힘힘 열매의 힘이 바다의 저주마저 밀어낸 걸까요? 아무도 그 이유를 설명하지 못했습니다.",
+            choices: null,
+            effect: () => {
+              p.flags.powerSwim = true;
+              p.happiness += 4;
+              p.fruitMastery = Math.min(40, m + 1);
+            },
+            summary: "힘힘 열매 능력자인데도 바다에서 헤엄칠 수 있다는 걸 알게 됨",
+          });
         if (m >= 35 && p.combat >= 55 && !p.flags.awakened && f !== "힘힘 열매")
           pool.push({
             essential: true,
@@ -17865,6 +17897,26 @@
             },
           ],
         };
+      }
+      // 첫 번째 악마의 열매를 먹는다 (발견한 열매 · 출생 설정에서 고른 열매 공용)
+      function eatFirstFruit(fruit) {
+        p.fruit = fruit;
+        p.fruitGrade = fruitGrade(fruit);
+        p.fruitMastery = 0;
+        p.fruitCount = 1;
+        p.abilities.push(fruit + " [" + p.fruitGrade + "]");
+        p.combat = clamp(
+          p.combat +
+            {
+              S: ri(20, 30),
+              A: ri(14, 20),
+              B: ri(9, 14),
+              C: ri(5, 9),
+            }[p.fruitGrade],
+        );
+        p.happiness = clamp(p.happiness + 3);
+        log(`${fruit}(${p.fruitGrade}등급)을(를) 먹고 능력을 얻음`);
+        fruitAfterEat();
       }
       function fruitAfterEat() {
         if (
@@ -24228,6 +24280,7 @@
             essential: true,
             major: true,
             key: "sword_ryuma",
+            tags: ["Ryuma"],
             title: "좀비 류마와의 전투",
             body: "안개 낀 유령선의 갑판 위, 와노쿠니의 전설적인 사무라이 '검호 류마'의 시체가 그림자를 얻어 되살아났습니다. 그의 허리에는 명검 '슈스이'가 걸려 있습니다. 이기는 자가 그 검을 가질 자격이 있습니다.",
             choices: [
@@ -26780,6 +26833,12 @@ function pikaMissionScene(){
 /* ===================== v53: 세계 최강의 검사에게 도전하는 자들 ===================== */
 CUSTOM_SCENE_ART["Zoro"]="assets/scene-zoro.webp";
 ART_LABEL.zoro="조로";
+CUSTOM_SCENE_ART["Garp"]="assets/scene-garp.jpg";
+ART_LABEL.garp="가프";
+CUSTOM_SCENE_ART["Sanji"]="assets/scene-sanji.jpg";
+ART_LABEL.sanji="상디";
+CUSTOM_SCENE_ART["Ryuma"]="assets/scene-ryuma.jpg";
+ART_LABEL.ryuma="류마";
 function swordChallengeScene(){
  if(!p.flags.bestSword||p.job==="노예"||p.age<20||p.age-(p.flags.swordChallengeAge??-99)<4||Math.random()>=.18)return null;
  p.flags.swordChallengeAge=p.age;
@@ -26870,7 +26929,10 @@ function nationSagaScene(){
   if(p.flags.imuDefeated){p.flags.nationStage=99;if(!imuBeatenByMe())return null;
    return {essential:true,major:true,key:"nation_end",tags:["imu"],title:"이미 쓰러뜨린 지배자",body:`세계정부가 ${nm}을(를) 지우려 한다는 소문이 돌았지만, 판게아 성에서는 아무도 움직이지 않았습니다. 세계의 지배자 이무는 이미 당신의 손에 진짜 모습까지 꺾였기 때문입니다. ${nm}의 깃발이 바닷바람에 펄럭였습니다.`,choices:null,effect:()=>{p.happiness+=10;p.reputation+=10;log("이미 이무를 쓰러뜨린 전적이 있어 결전 없이 승리로 처리됨")},summary:"이무와의 결전을 승리로 넘김"}}
   const friend=p.flags.strawHat==="friend";const ch=Math.min(.85,.55+(friend?.2:0)+(p.flags.voidProgress>=7?.05:0));
-  return {essential:true,major:true,key:"nation_luffy",tags:["luffy"],title:"밀짚모자에게 보내는 편지",body:`세계정부가 ${nm}을(를) 지우려 한다는 소문이 돌기 시작했습니다. 이무에게 맞설 수 있는 자는 이 바다에 단 한 무리뿐입니다. 당신은 밀짚모자 해적단에게 도움을 청하는 편지를 띄우기로 했습니다.${friend?"\n\n오랜 친구인 루피라면 반드시 와 줄 것입니다.":""}`,choices:[
+  // 밀짚모자 해적단과 친구가 된 적이 없으면 그들에게 도움을 청할 수 없다
+  if(!friend)return {essential:true,major:true,key:"nation_alone",tags:["kingdom"],title:"홀로 맞서는 나라",body:`세계정부가 ${nm}을(를) 지우려 한다는 소문이 돌기 시작했습니다. 이무에게 맞설 수 있는 자는 이 바다에 단 한 무리, 밀짚모자 해적단뿐이라는 말이 돌지만 당신은 그들과 아무런 인연이 없습니다. 기댈 곳 없이 나라를 지켜야 합니다.`,choices:[
+   {title:"나라를 지키며 버틴다",desc:"아무에게도 기대지 않는다.",run:()=>{p.flags.nationStage=99;p.flags.wgHunt=true;log("누구에게도 도움을 청하지 않고 나라를 지키기로 함")}}]};
+  return {essential:true,major:true,key:"nation_luffy",tags:["luffy"],title:"밀짚모자에게 보내는 편지",body:`세계정부가 ${nm}을(를) 지우려 한다는 소문이 돌기 시작했습니다. 이무에게 맞설 수 있는 자는 이 바다에 단 한 무리뿐입니다. 당신은 밀짚모자 해적단에게 도움을 청하는 편지를 띄우기로 했습니다.\n\n오랜 친구인 루피라면 반드시 와 줄 것입니다.`,choices:[
    {title:"루피에게 도움을 요청한다",desc:`싸우는 것은 당신이 아니라 밀짚모자 해적단이다. (이무를 쓰러뜨릴 가능성 약 ${Math.round(ch*100)}%)`,run:()=>{p.flags.nationStage=99;
      if(Math.random()<ch){p.flags.imuDefeated=true;p.happiness+=20;p.reputation+=20;achieve("밀짚모자와 함께 세계를 바꿈");addNews(`밀짚모자 해적단, 이무를 쓰러뜨리다 — ${nm}의 왕이 길을 열었다`);scenes.splice(sceneIndex+1,0,{essential:true,key:"nation_end",tags:["luffy"],title:"새벽",body:`밀짚모자 해적단이 판게아 성에 올랐고, 긴 싸움 끝에 이무가 쓰러졌습니다. 800년의 지배가 끝난 새벽, ${nm}의 깃발이 바닷바람에 펄럭였습니다.`,choices:null,effect:()=>{},summary:"밀짚모자 해적단이 이무를 쓰러뜨림"})}
      else{p.happiness-=10;p.flags.wgHunt=true;addNews("밀짚모자 해적단, 판게아 성에서 퇴각");scenes.splice(sceneIndex+1,0,{essential:true,key:"nation_end",tags:["luffy"],title:"물러난 밀짚모자",body:`밀짚모자 해적단은 이무에게 맞섰지만, 끝내 물러날 수밖에 없었습니다. 그들은 다시 오겠다는 말을 남겼습니다. ${nm}은(는) 이제 세계정부의 표적이 되었습니다.`,choices:null,effect:()=>{},summary:"밀짚모자 해적단이 이무와 싸웠지만 물러남"})}}},
@@ -26891,9 +26953,13 @@ let _nameWarned=false;
 function chosenName(){const el=document.getElementById("charName");const v=el?String(el.value||"").trim().slice(0,12):"";return v||null}
 function showNameWarning(){
  if(_nameWarned)return;_nameWarned=true;
+ showSetupWarning(`<h2 style="margin-top:0">잠깐만요</h2><div>이 게임은 원피스 세상에 <b>평범한 한 사람</b>으로 태어나, 어떤 인생이 펼쳐질지 지켜보는 게임입니다.</div><div class="small" style="margin-top:8px">이름을 직접 정하면 게임의 재미가 반감되거나 몰입을 해칠 수도 있습니다. 그래도 괜찮다면 그대로 진행하세요. 이름 칸을 비워 두면 무작위로 정해집니다.</div>`);
+}
+// 출생 설정 경고창 (이름·악마의 열매 공용)
+function showSetupWarning(html){
  const ov=document.createElement("div");ov.style.cssText="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:16px";
  const box=document.createElement("div");box.className="panel";box.style.cssText="max-width:440px;width:100%;line-height:1.7";
- box.innerHTML=`<h2 style="margin-top:0">잠깐만요</h2><div>이 게임은 원피스 세상에 <b>평범한 한 사람</b>으로 태어나, 어떤 인생이 펼쳐질지 지켜보는 게임입니다.</div><div class="small" style="margin-top:8px">이름을 직접 정하면 게임의 재미가 반감되거나 몰입을 해칠 수도 있습니다. 그래도 괜찮다면 그대로 진행하세요. 이름 칸을 비워 두면 무작위로 정해집니다.</div>`;
+ box.innerHTML=html;
  const btn=document.createElement("button");btn.className="btn";btn.style.marginTop="14px";btn.textContent="확인";btn.onclick=()=>ov.remove();box.appendChild(btn);
  ov.appendChild(box);document.body.appendChild(ov);
 }
@@ -27264,13 +27330,14 @@ function martialScene(){
 /* =========================================================== */
 
 /* ===================== v65: 가프·상디와의 만남, 명검 ===================== */
-function yubashiriBonus(){return p&&p.abilities&&p.abilities.includes("유바시리")?0.01:0}
+// 명검 보너스: 유바시리·엔마는 각각 최대 승률 한도 +1%
+function yubashiriBonus(){if(!p||!p.abilities)return 0;return (p.abilities.includes("유바시리")?0.01:0)+(p.abilities.includes("엔마")?0.01:0)}
 function addAbility(a){p.abilities=p.abilities||[];if(!p.abilities.includes(a))p.abilities.push(a)}
 
 // ── 해군: 가프와의 만남 (한 번) ──
 function garpScene(){
  if(p.flags.garpMet||p.status!=="해군"||p.age<18||p.job==="노예"||Math.random()>=.25)return null;
- return {essential:true,major:true,key:"garp_meet",cooldown:999,title:"해군 영웅 가프와의 만남",
+ return {essential:true,major:true,key:"garp_meet",cooldown:999,tags:["Garp"],title:"해군 영웅 가프와의 만남",
   body:"지부 훈련장에 전병 봉지를 든 노병이 불쑥 나타났습니다. 해군의 영웅, '주먹의 가프'입니다. 그는 당신의 훈련을 한참 지켜보더니 껄껄 웃었습니다. \"주먹이 제법 쓸 만하구나! 내 주먹을 배워 볼 테냐, 아니면 한번 붙어 볼 테냐?\"",
   choices:[
    {title:"'어니스트 임팩트'를 배운다",desc:"가프의 정직한 주먹을 전수받는다. (사용 기술 등록 · 무투술 +40)",run:()=>{p.flags.garpMet=true;addAbility("어니스트 임팩트");sk("무투술",40);p.health-=ri(3,8);achieve("가프에게 어니스트 임팩트를 배움");log("가프에게 '어니스트 임팩트'를 배워 사용 기술에 등록함 (무투술 +40)")}},
@@ -27279,7 +27346,7 @@ function garpScene(){
 // ── 해적·요리사·현상금 사냥꾼·모험가 + 무투술 40 이상: 상디와의 만남 (한 번) ──
 function sanjiScene(){
  if(p.flags.sanjiMet||!["해적","요리사","현상금 사냥꾼","모험가"].includes(p.job)||skv("무투술")<40||p.age<16||Math.random()>=.25)return null;
- return {essential:true,major:true,key:"sanji_meet",cooldown:999,title:"'검은다리' 상디와의 만남",
+ return {essential:true,major:true,key:"sanji_meet",cooldown:999,tags:["Sanji"],title:"'검은다리' 상디와의 만남",
   body:"항구 식당 뒷문에서 담배를 문 금발의 남자가 시비를 거는 건달들을 손 하나 쓰지 않고 발차기만으로 날려 버렸습니다. '검은다리' 상디입니다. 그는 당신의 몸놀림을 보더니 담배 연기를 내뿜었습니다. \"요리사의 손은 칼을 쥐는 손이지, 싸우는 손이 아니야. 싸움은 다리로 하는 거다. …배워 볼 텐가? 아니면 직접 확인해 볼래?\"",
   choices:[
    {title:"'검은다리 유파'를 배운다",desc:"손을 쓰지 않는 발차기 무술을 익힌다. (사용 기술 등록 · 무투술 +30)",run:()=>{p.flags.sanjiMet=true;addAbility("검은다리 유파");sk("무투술",30);if(p.job==="요리사")sk("요리",5);achieve("상디에게 검은다리 유파를 배움");log("상디에게 '검은다리 유파'를 배워 사용 기술에 등록함 (무투술 +30)")}},
@@ -27289,16 +27356,16 @@ function sanjiScene(){
 
 // ── 지출: 검 구입 ──
 const SHOP_SWORDS=[
- {name:"키코쿠",price:2000000,desc:"와노쿠니의 대업물 명검. 검술 +5",buy:()=>sk("검술",5)},
- {name:"시구레",price:6000000,desc:"푸른 칼날의 명검. 검술 +10",buy:()=>sk("검술",10)},
- {name:"유바시리",price:30000000,desc:"가볍고 날렵한 명검. 최대 승률 한도 +1%",buy:()=>{}},
+ {name:"키코쿠",price:2000000,desc:"트라팔가 로가 쓰는 노다치. 대업물 21공 중 하나. 검술 +5",buy:()=>sk("검술",5)},
+ {name:"시구레",price:10000000,desc:"푸른 칼날의 명검. 검술 +10",buy:()=>sk("검술",10)},
+ {name:"유바시리",price:45000000,desc:"가볍고 날렵한 명검. 최대 승률 한도 +1%",buy:()=>{}},
 ];
 {const _si65=shopItems;shopItems=function(){const it=_si65.apply(this,arguments);
  for(const w of SHOP_SWORDS)if(!p.abilities.includes(w.name))it.push({name:`검 — ${w.name}`,price:w.price,desc:`${w.desc} · 사용 기술에 등록된다.`,ok:true,buy:()=>{addAbility(w.name);w.buy();return `명검 '${w.name}'을(를) 손에 넣었습니다. 사용 기술에 등록되었습니다.`}});
  return it}}
 
 // ── 꿈: 모든 명검 모으기 (10세에 '최강의 검사'를 고른 사람) ──
-const MEIKEN=["키코쿠","시구레","유바시리","명도•슈스이","와도 이치몬지","엔마"];
+const MEIKEN=["키코쿠","시구레","유바시리","명도•슈스이","화도 일문자","엔마"];
 DREAMS.blades={name:"모든 명검 모으기",
  eligible:()=>!!(p.kid&&p.kid.dream==="검사"),
  progress:()=>MEIKEN.filter(x=>p.abilities.includes(x)).length/MEIKEN.length,
@@ -27309,19 +27376,20 @@ DREAMS.blades={name:"모든 명검 모으기",
   const c={title:DREAMS.blades.name,desc:`세상의 명검(${MEIKEN.join(", ")})을 모두 손에 넣는다. 좀비 류마와 롤로노아 조로가 가진 검도 있다.`,run:()=>setDream("blades")};
   sc.choices.splice(Math.max(0,sc.choices.length-1),0,c)}
  return sc}}
-// 명검을 노리는 사람 앞에는 좀비 류마(슈스이)와 조로(와도 이치몬지·엔마)가 나타난다
+// 명검을 노리는 사람 앞에는 좀비 류마(슈스이)와 조로(화도 일문자·엔마)가 나타난다
 function bladeScene(){
- if(p.age<(p.flags.bladeNext||0)||Math.random()>=.4)return null;
- if(!p.abilities.includes("명도•슈스이")&&p.combat>=45)return {essential:true,major:true,key:"blade_ryuma",title:"좀비 류마와의 전투",
+ // 명검의 주인은 쉽게 만나지 못한다: 18세 이후, 한 번 만나면 3~5년 간격, 해마다 15% 확률
+ if(p.age<18||p.age<(p.flags.bladeNext||0)||Math.random()>=.15)return null;
+ if(!p.abilities.includes("명도•슈스이")&&p.combat>=55)return {essential:true,major:true,key:"blade_ryuma",tags:["Ryuma"],title:"좀비 류마와의 전투",
   body:"안개 낀 유령선의 갑판 위, 와노쿠니의 전설적인 사무라이 '검호 류마'의 시체가 그림자를 얻어 되살아났습니다. 그의 허리에는 명검 '슈스이'가 걸려 있습니다. 모든 명검을 모으려면 이 검을 빼놓을 수 없습니다.",
   choices:[
-   {title:"전설의 검호에게 도전한다",desc:"이기면 '명도•슈스이'를 얻는다. (검술 +50)"+oddsText(-.2),run:()=>{if(battle({foe:"좀비 류마",base:-.2,loseHp:[18,35]})){addAbility("명도•슈스이");sk("검술",50);achieve("명도 슈스이를 손에 넣음");log("좀비 류마를 쓰러뜨리고 명도 슈스이를 손에 넣음")}else p.flags.bladeNext=p.age+ri(2,4)}},
-   {title:"물러난다",desc:"전설의 검호는 아직 버겁다.",run:()=>{p.flags.bladeNext=p.age+ri(2,3);log("좀비 류마와의 승부를 미룸")}}]};
- if(!(p.abilities.includes("와도 이치몬지")&&p.abilities.includes("엔마"))&&p.combat>=60)return {essential:true,major:true,key:"blade_zoro",tags:["Zoro"],title:"롤로노아 조로와의 결투",
-  body:"세 자루의 검을 찬 초록 머리의 검사가 당신 앞을 막아섰습니다. 롤로노아 조로입니다. 그의 허리에는 하얀 칼집의 '와도 이치몬지'와 검은 칼집의 '엔마'가 꽂혀 있습니다. \"내 검이 탐난다고? 좋아. 이기면 가져가 봐라.\"",
+   {title:"전설의 검호에게 도전한다",desc:"이기면 '명도•슈스이'를 얻는다. (검술 +50)"+oddsText(-.2),run:()=>{p.flags.bladeNext=p.age+ri(3,5);if(battle({foe:"좀비 류마",base:-.2,loseHp:[18,35]})){addAbility("명도•슈스이");sk("검술",50);achieve("명도 슈스이를 손에 넣음");log("좀비 류마를 쓰러뜨리고 명도 슈스이를 손에 넣음")}}},
+   {title:"물러난다",desc:"전설의 검호는 아직 버겁다.",run:()=>{p.flags.bladeNext=p.age+ri(3,5);log("좀비 류마와의 승부를 미룸")}}]};
+ if(!(p.abilities.includes("화도 일문자")&&p.abilities.includes("엔마"))&&p.combat>=70&&p.age>=22)return {essential:true,major:true,key:"blade_zoro",tags:["Zoro"],title:"롤로노아 조로와의 결투",
+  body:"세 자루의 검을 찬 초록 머리의 검사가 당신 앞을 막아섰습니다. 롤로노아 조로입니다. 그의 허리에는 하얀 칼집의 '화도 일문자'와 검은 칼집의 '엔마'가 꽂혀 있습니다. \"내 검이 탐난다고? 좋아. 이기면 가져가 봐라.\"",
   choices:[
-   {title:"검을 걸고 결투한다",desc:"이기면 '와도 이치몬지'와 '엔마'를 얻는다. (검술 +20) 져도 목숨은 잃지 않는다."+oddsText(-.3),run:()=>{if(battle({foe:"삼도류 검사 롤로노아 조로",base:-.3,loseHp:[18,38],nonFatal:true})){addAbility("와도 이치몬지");addAbility("엔마");sk("검술",20);achieve("조로에게서 와도 이치몬지와 엔마를 얻음");log("롤로노아 조로를 꺾고 와도 이치몬지와 엔마를 손에 넣음")}else p.flags.bladeNext=p.age+ri(2,4)}},
-   {title:"물러난다",desc:"아직 조로를 넘을 수 없다.",run:()=>{p.flags.bladeNext=p.age+ri(2,3);log("롤로노아 조로와의 결투를 미룸")}}]};
+   {title:"검을 걸고 결투한다",desc:"이기면 '화도 일문자'와 '엔마'를 얻는다. (검술 +20 · 엔마: 최대 승률 한도 +1%) 져도 목숨은 잃지 않는다."+oddsText(-.3),run:()=>{p.flags.bladeNext=p.age+ri(3,5);if(battle({foe:"삼도류 검사 롤로노아 조로",base:-.3,loseHp:[18,38],nonFatal:true})){addAbility("화도 일문자");addAbility("엔마");sk("검술",20);achieve("조로에게서 화도 일문자와 엔마를 얻음");log("롤로노아 조로를 꺾고 화도 일문자와 엔마를 손에 넣음")}}},
+   {title:"물러난다",desc:"아직 조로를 넘을 수 없다.",run:()=>{p.flags.bladeNext=p.age+ri(3,5);log("롤로노아 조로와의 결투를 미룸")}}]};
  return null;
 }
 {const _ds65=dreamScene;dreamScene=function(){const d=p.dream;
@@ -27345,6 +27413,1758 @@ function imuBeatenByMe(){return !!p&&(p.flags.imuFinalVictoryAge!=null||(p.flags
    choices:null,effect:()=>{p.flags.imuDefeated=true;p.flags.nidhoggSagaStage=4;p.reputation=clamp(p.reputation+20);p.happiness=clamp(p.happiness+10);achieve("니드호그의 힘으로 이무를 쓰러뜨림");log("이미 이무를 쓰러뜨린 전적이 있어 결전 없이 니드호그 전용 스토리를 완수함")},summary:"이무와의 결전을 승리로 넘김"};
  return sc}}
 /* =========================================================== */
+
+/* ===================== v67: 명검 이름 변경 (와도 이치몬지 → 화도 일문자) — 예전 세이브 호환 ===================== */
+function renameOldBlades(){
+ if(!p||!Array.isArray(p.abilities))return;
+ const old="\uC640\uB3C4 \uC774\uCE58\uBAAC\uC9C0"; // 예전 이름
+ const i=p.abilities.indexOf(old);
+ if(i>=0){if(p.abilities.includes("화도 일문자"))p.abilities.splice(i,1);else p.abilities[i]="화도 일문자"}
+}
+{const _lg67=loadGame;loadGame=function(){const r=_lg67.apply(this,arguments);try{renameOldBlades();render()}catch(e){}return r}}
+/* =========================================================== */
+
+/* ===================== v68: 출생 설정에서 악마의 열매 고르기 ===================== */
+// B~S등급 열매 중 하나를 고르면 5살이 되는 해에 반드시 그 열매를 먹는다.
+let _fruitWarned=false;
+function chosenFruitPick(){const el=document.getElementById("charFruit");const v=el?String(el.value||""):"";return ["S","A","B"].some(g=>FRUIT_GRADES[g].includes(v))?v:null}
+{const el=document.getElementById("charFruit");if(el){
+ for(const g of ["S","A","B"]){const og=document.createElement("optgroup");og.label=g+"등급";for(const f of FRUIT_GRADES[g]){const o=document.createElement("option");o.value=f;o.textContent=f;og.appendChild(o)}el.appendChild(og)}
+ el.addEventListener("change",()=>{if(el.value&&!_fruitWarned){_fruitWarned=true;showSetupWarning(`<h2 style="margin-top:0">잠깐만요</h2><div>고른 <b>${el.value}</b>은(는) 5살이 되는 해에 반드시 먹게 됩니다. 한번 먹으면 바다에서 헤엄칠 수 없고, 되돌릴 수 없습니다.</div><div class="small" style="margin-top:8px">열매를 직접 고르면 우연히 운명이 바뀌는 재미가 반감되거나 몰입을 해칠 수도 있습니다. 그래도 괜찮다면 그대로 진행하세요. '운명에 맡긴다'를 고르면 예전처럼 우연에 맡깁니다.</div>`)}})}}
+{const _bg68=begin;begin=function(){const f=chosenFruitPick(),before=p;const r=_bg68.apply(this,arguments);if(p&&p!==before&&f)p.flags.chosenFruit=f;return r}}
+function chosenFruitScene(){
+ const f=p.flags.chosenFruit;
+ if(!f||p.flags.chosenFruitDone||realAge()<5)return null;
+ p.flags.chosenFruitDone=true;
+ if(p.fruit)return null; // 그 전에 이미 다른 열매를 먹었다면 넘어간다
+ return {essential:true,major:true,key:"chosen_fruit",title:"기묘한 무늬의 열매",
+  body:`다섯 살이 되던 해, 바닷가 바위틈에서 소용돌이 무늬가 새겨진 기묘한 열매를 주웠습니다. 배가 고팠던 당신은 어른들이 말릴 새도 없이 한입 크게 베어 물었습니다.\n\n세상에서 가장 끔찍한 맛이 입안에 퍼졌고, 그날부터 몸속에 낯선 힘이 깃들기 시작했습니다. 당신이 먹은 것은 '${f}'였습니다.`,
+  choices:null,effect:()=>{if(!p.fruit)eatFirstFruit(f)},summary:`5살에 ${f}을(를) 먹음`};
+}
+{const _be68=buildExtraScenes;buildExtraScenes=function(){const r=_be68.apply(this,arguments);try{const s=chosenFruitScene();if(s)scenes.unshift(s)}catch(e){}return r}}
+/* =========================================================== */
+
+/* ===================== v69: 직업별 전용 사건 추가 · 어린 열매 능력자 사건 ===================== */
+// ── 직업 전용 사건 (직업마다 3개) ──
+// 선택지: [제목, 설명, 실행]. 같은 사건은 최소 8년 동안 다시 나오지 않는다.
+function jx(job, n, title, body, choices) {
+  return {
+    key: `jobx_${job}_${n}`,
+    cooldown: 8,
+    title,
+    body,
+    choices: choices
+      ? choices.map(([t, d, run]) => ({ title: t, desc: d, run }))
+      : null,
+  };
+}
+function jxAuto(job, n, title, body, effect, summary) {
+  return { key: `jobx_${job}_${n}`, cooldown: 8, title, body, choices: null, effect, summary };
+}
+const JOBX = {
+  어부: () => [
+    jx("어부", 1, "새벽 바다의 대어", "새벽 그물에 배가 기울 만큼 커다란 물고기가 걸렸습니다. 혼자 끌어올리기엔 벅차 보입니다.", [
+      ["끝까지 혼자 끌어올린다", "힘이 들지만 큰돈이 된다.", () => { if (Math.random() < 0.6) { p.money += ri(80000, 200000); p.combat += 1; log("혼자 대어를 끌어올려 비싸게 팔았음"); } else { p.health -= ri(4, 10); log("대어를 끌어올리다 그물에 손을 다침"); } }],
+      ["옆 배를 불러 나눠 갖는다", "수익은 줄지만 안전하다.", () => { p.money += ri(40000, 90000); p.relationship += 3; log("이웃 어부와 대어를 나눔"); }],
+    ]),
+    jx("어부", 2, "어장 다툼", "다른 마을 어선들이 당신네 어장까지 넘어와 그물을 치고 있습니다. 마을 어부들이 술렁입니다.", [
+      ["앞장서서 담판을 짓는다", "말로 해결해 본다.", () => { if (Math.random() < 0.55 + p.knowledge / 300) { p.reputation += 3; log("어장 다툼을 담판으로 해결함"); } else { p.happiness -= 3; log("어장 담판이 결렬됨"); } }],
+      ["조용히 다른 곳에서 고기를 잡는다", "다툼을 피한다.", () => { p.money -= ri(10000, 30000); log("어장 다툼을 피해 먼 바다로 나감"); }],
+    ]),
+    jxAuto("어부", 3, "폭풍 전의 하늘", "오랜 경험 덕에 하늘빛이 이상하다는 걸 알아챘습니다. 당신의 말을 듣고 배를 묶어 둔 마을은 그날 밤 폭풍을 무사히 넘겼습니다.", () => { p.reputation += 2; p.relationship += 3; sk("항해술", 2); }, "폭풍을 미리 알아채 마을 배들을 지킴"),
+  ],
+  농부: () => [
+    jx("농부", 1, "흉년의 조짐", "올해는 비가 너무 적습니다. 밭이 갈라지기 시작했습니다.", [
+      ["멀리서 물을 길어 온다", "몸은 고되지만 수확을 지킨다.", () => { p.health -= ri(2, 6); p.money += ri(30000, 80000); log("멀리서 물을 길어 밭을 지켜 냄"); }],
+      ["가뭄에 강한 작물로 바꾼다", "지식이 필요하다.", () => { if (p.knowledge >= 25 || Math.random() < 0.4) { p.money += ri(50000, 120000); p.knowledge += 2; log("가뭄에 강한 작물로 바꿔 수확을 지킴"); } else { p.money -= ri(20000, 50000); log("작물을 바꿨지만 잘 자라지 않음"); } }],
+    ]),
+    jx("농부", 2, "해적의 식량 징발", "지나가던 해적들이 마을에 들러 곡식을 내놓으라고 합니다.", [
+      ["순순히 일부를 내준다", "손해를 보지만 다치지 않는다.", () => { p.money -= ri(30000, 70000); log("해적에게 곡식 일부를 내줌"); }],
+      ["창고를 숨기고 버틴다", "들키면 위험하다.", () => { if (Math.random() < 0.6) { p.happiness += 3; log("창고를 숨겨 곡식을 지킴"); } else { p.health -= ri(5, 12); p.money -= ri(40000, 90000); log("숨긴 창고를 들켜 해적에게 맞음"); } }],
+    ]),
+    jxAuto("농부", 3, "풍년 축제", "올해는 유난히 수확이 좋았습니다. 마을 사람들과 함께 연 풍년 축제에서 당신의 작물이 최고로 뽑혔습니다.", () => { p.money += ri(40000, 100000); p.happiness += 5; p.reputation += 1; }, "풍년 축제에서 최고의 작물로 뽑힘"),
+  ],
+  "상점 점원": () => [
+    jx("상점 점원", 1, "진상 손님", "물건값을 깎아 달라며 한 시간째 소리치는 손님이 있습니다. 주인은 자리를 비웠습니다.", [
+      ["끝까지 웃으며 응대한다", "인내심이 필요하다.", () => { p.happiness -= 2; p.reputation += 2; log("진상 손님을 끝까지 웃으며 응대함"); }],
+      ["단호하게 나가 달라고 한다", "손님을 잃을 수도 있다.", () => { p.happiness += 2; if (Math.random() < 0.3) { p.money -= ri(10000, 30000); log("진상 손님을 내보냈다가 주인에게 혼남"); } else log("진상 손님을 단호하게 내보냄"); }],
+    ]),
+    jx("상점 점원", 2, "장부의 빈칸", "장부를 정리하다가 돈이 조금씩 비는 걸 발견했습니다. 함께 일하는 점원이 수상합니다.", [
+      ["주인에게 알린다", "정직하게 처리한다.", () => { p.reputation += 3; p.relationship -= 2; log("장부의 빈칸을 주인에게 알림"); }],
+      ["동료와 먼저 이야기해 본다", "사정이 있을지도 모른다.", () => { p.relationship += 3; log("동료의 사정을 듣고 몰래 돈을 메우게 도움"); }],
+    ]),
+    jxAuto("상점 점원", 3, "단골손님의 선물", "늘 같은 시간에 오던 노부인이 그동안 친절하게 대해 줘서 고맙다며 손수 짠 목도리를 건넸습니다.", () => { p.happiness += 5; p.relationship += 2; }, "단골손님에게 감사 선물을 받음"),
+  ],
+  "항구 노동자": () => [
+    jx("항구 노동자", 1, "수상한 화물", "선적하던 상자 하나에서 쇳소리와 함께 화약 냄새가 납니다. 서류에는 '건어물'이라고 적혀 있습니다.", [
+      ["해군 초소에 신고한다", "보상을 받을 수도 있다.", () => { if (noNavyHere()) { p.reputation += 2; log("수상한 화물을 항구 관리인에게 알림"); } else { p.money += ri(20000, 60000); p.reputation += 2; log("수상한 화물을 해군에 신고해 보상을 받음"); } }],
+      ["못 본 척 싣는다", "괜히 엮이고 싶지 않다.", () => { p.money += ri(10000, 30000); log("수상한 화물을 못 본 척 실어 줌"); }],
+    ]),
+    jx("항구 노동자", 2, "임금 체불", "항구 하역 회사가 석 달째 임금을 주지 않고 있습니다. 동료들이 파업을 하자고 합니다.", [
+      ["파업에 앞장선다", "임금을 받아 낼 수도, 잘릴 수도 있다.", () => { if (Math.random() < 0.6) { p.money += ri(60000, 150000); p.reputation += 3; log("파업에 앞장서 밀린 임금을 받아 냄"); } else { p.money -= ri(20000, 50000); p.happiness -= 4; log("파업에 앞장섰다가 일감을 잃음"); } }],
+      ["조용히 일을 계속한다", "언젠가는 주겠지.", () => { p.money += ri(20000, 40000); p.happiness -= 2; log("파업에 끼지 않고 일을 계속함"); }],
+    ]),
+    jxAuto("항구 노동자", 3, "무너지는 화물", "높이 쌓인 화물이 기우뚱하는 순간, 당신이 몸을 날려 어린 짐꾼을 밀어냈습니다. 부두 사람들이 당신을 영웅이라 불렀습니다.", () => { p.reputation += 3; p.health -= ri(2, 6); p.combat += 1; }, "무너지는 화물에서 어린 짐꾼을 구함"),
+  ],
+  조선공: () => [
+    jx("조선공", 1, "보물선의 수리 의뢰", "낡은 해도를 든 선장이 배를 '거친 바다도 견디게' 고쳐 달라며 두둑한 돈을 내밀었습니다. 기한은 단 사흘입니다.", [
+      ["밤을 새워 완성한다", "큰돈과 명성을 얻는다.", () => { p.health -= ri(3, 8); p.money += ri(150000, 400000); sk("제작", 3); log("사흘 밤을 새워 보물선 수리를 끝냄"); }],
+      ["기한을 늘려 달라고 한다", "꼼꼼하게 고친다.", () => { p.money += ri(80000, 160000); p.reputation += 2; log("기한을 늘려 꼼꼼하게 배를 고침"); }],
+    ]),
+    jx("조선공", 2, "아담의 나무 소문", "보물의 나무 '아담'의 목재 조각이 암시장에 나왔다는 소문을 들었습니다. 최고의 조선공이라면 한 번쯤 다뤄 보고 싶은 나무입니다.", [
+      ["큰돈을 들여 사들인다", "진짜라면 평생의 경험이 된다.", () => { p.money -= ri(200000, 500000); if (Math.random() < 0.5) { sk("제작", 8); p.knowledge += 3; log("아담 목재 조각을 다뤄 보며 솜씨가 크게 늘어남"); } else log("아담 목재라던 조각이 가짜로 밝혀짐"); }],
+      ["소문일 뿐이라며 넘긴다", "돈을 아낀다.", () => { log("아담의 나무 소문을 흘려들음"); }],
+    ]),
+    jxAuto("조선공", 3, "진수식", "당신이 설계부터 맡은 배가 마침내 바다에 띄워졌습니다. 뱃머리가 물을 가르자 항구에 박수 소리가 퍼졌습니다.", () => { p.happiness += 6; p.reputation += 3; sk("제작", 2); }, "직접 설계한 배의 진수식을 치름"),
+  ],
+  요리사: () => [
+    jx("요리사", 1, "굶주린 해적", "문 닫을 무렵, 돈 한 푼 없는 굶주린 해적이 식당 앞에 쓰러졌습니다.", [
+      ["밥을 차려 준다", "배고픈 사람은 누구든 먹인다.", () => { p.happiness += 4; p.money -= ri(3000, 8000); if (Math.random() < 0.3) { p.money += ri(100000, 300000); log("밥을 먹여 준 해적이 훗날 보답을 보내옴"); } else log("굶주린 해적에게 밥을 차려 줌"); }],
+      ["해군에 신고한다", "엮이지 않는 게 좋다.", () => { p.reputation += 1; p.happiness -= 2; log("식당 앞에 쓰러진 해적을 신고함"); }],
+    ]),
+    jx("요리사", 2, "요리 대회", "항구에서 큰 요리 대회가 열립니다. 우승하면 상금과 함께 유명 식당의 초대를 받을 수 있습니다.", [
+      ["새로운 요리로 승부한다", "위험하지만 눈에 띈다.", () => { if (Math.random() < 0.3 + skv("요리") / 200) { p.money += ri(200000, 500000); p.reputation += 5; achieve("요리 대회 우승"); log("요리 대회에서 새 요리로 우승함"); } else { p.happiness -= 3; log("요리 대회에서 새 요리가 혹평을 받음"); } }],
+      ["자신 있는 요리로 안전하게 간다", "입상은 할 수 있다.", () => { p.money += ri(50000, 120000); p.reputation += 2; sk("요리", 2); log("요리 대회에서 입상함"); }],
+    ]),
+    jxAuto("요리사", 3, "바다의 진미", "어부에게서 처음 보는 해수어를 얻어 밤새 요리법을 연구했습니다. 다음 날 그 요리를 맛본 손님들이 줄을 섰습니다.", () => { sk("요리", 3); p.money += ri(40000, 100000); p.happiness += 3; }, "새로운 해수어 요리를 개발함"),
+  ],
+  "의사 견습": () => [
+    jx("의사 견습", 1, "한밤의 응급 환자", "선배 의사가 없는 밤, 칼에 베인 선원이 피투성이로 실려 왔습니다.", [
+      ["직접 봉합한다", "실력을 시험할 때다.", () => { if (Math.random() < 0.45 + skv("의술") / 150) { p.reputation += 4; sk("의술", 3); log("한밤에 홀로 선원의 상처를 봉합해 살림"); } else { p.happiness -= 6; log("응급 처치가 서툴러 선원이 크게 고생함"); } }],
+      ["지혈만 하고 선배를 부른다", "무리하지 않는다.", () => { sk("의술", 1); p.knowledge += 1; log("지혈을 하며 선배 의사를 부름"); }],
+    ]),
+    jx("의사 견습", 2, "역병의 섬 소식", "이웃 섬에 원인 모를 역병이 돌고 있다는 소식입니다. 의사들이 지원자를 모으고 있습니다.", [
+      ["지원해서 섬으로 간다", "많이 배우지만 위험하다.", () => { sk("의술", 5); p.knowledge += 3; p.reputation += 3; if (Math.random() < 0.25) { p.health -= ri(8, 18); log("역병의 섬에서 환자를 돌보다 병에 걸렸지만 회복함"); } else log("역병의 섬에서 환자들을 돌봄"); }],
+      ["남아서 진료소를 지킨다", "누군가는 남아야 한다.", () => { sk("의술", 1); log("진료소에 남아 일상의 환자를 돌봄"); }],
+    ]),
+    jxAuto("의사 견습", 3, "첫 감사 편지", "몇 해 전 당신이 치료한 아이에게서 삐뚤빼뚤한 글씨의 편지가 도착했습니다. '선생님처럼 의사가 될래요.'", () => { p.happiness += 6; p.knowledge += 1; }, "치료했던 아이에게서 감사 편지를 받음"),
+  ],
+  상인: () => [
+    jx("상인", 1, "환율 폭락", "어느 왕국의 화폐 가치가 하룻밤 새 폭락했다는 소식이 들어왔습니다. 그 나라 물건이 헐값이 되었습니다.", [
+      ["물건을 대량으로 사들인다", "되팔면 큰돈이 될 수도 있다.", () => { if (Math.random() < 0.55) { p.money += ri(300000, 900000); log("환율 폭락 때 사들인 물건을 되팔아 큰돈을 벎"); } else { p.money -= ri(200000, 500000); log("헐값에 사들인 물건이 팔리지 않아 손해를 봄"); } }],
+      ["지켜보기만 한다", "위험한 장사는 하지 않는다.", () => { p.knowledge += 2; log("환율 폭락을 지켜보며 시장을 공부함"); }],
+    ]),
+    jx("상인", 2, "해적의 보호비", "항로를 지나는 해적단이 '안전한 항해'의 대가로 보호비를 요구했습니다.", [
+      ["보호비를 낸다", "돈은 들지만 무역은 계속된다.", () => { p.money -= ri(100000, 250000); log("해적단에게 보호비를 냄"); }],
+      ["항로를 바꾼다", "시간과 비용이 더 든다.", () => { p.money -= ri(40000, 120000); p.knowledge += 2; log("해적을 피해 새로운 항로를 개척함"); }],
+      ["해군에 호위를 요청한다", "가맹국 상인이라면 가능하다.", () => { if (!noNavyHere() && Math.random() < 0.6) { p.reputation += 2; log("해군의 호위를 받아 무역을 이어 감"); } else { p.money -= ri(150000, 300000); log("호위 요청이 늦어 화물을 빼앗김"); } }],
+    ]),
+    jxAuto("상인", 3, "대형 계약", "몇 년 동안 공들인 거래처와 마침내 대형 계약을 맺었습니다. 상인 조합에서도 당신의 이름이 오르내립니다.", () => { p.money += ri(200000, 600000); p.reputation += 3; sk("장사", 3); }, "대형 무역 계약을 따냄"),
+  ],
+  모험가: () => [
+    jx("모험가", 1, "지도에 없는 섬", "항해 중 해도에 없는 작은 섬을 발견했습니다. 짙은 안개 너머로 무언가 반짝입니다.", [
+      ["섬에 상륙한다", "보물이 있을 수도, 함정이 있을 수도 있다.", () => { if (Math.random() < 0.5) { p.money += ri(150000, 500000); p.happiness += 5; log("지도에 없는 섬에서 오래된 보물을 찾음"); } else { p.health -= ri(6, 15); log("지도에 없는 섬에서 맹수에게 쫓겨 도망침"); } }],
+      ["위치만 기록해 둔다", "다음 기회를 노린다.", () => { p.knowledge += 3; sk("항해술", 2); log("지도에 없는 섬의 위치를 해도에 기록함"); }],
+    ]),
+    jx("모험가", 2, "하늘섬의 전설", "구름 위에 섬이 있다는 노인의 이야기를 들었습니다. 그곳에 가려면 거대한 해류를 타야 한다고 합니다.", [
+      ["해류를 찾아 나선다", "큰 모험이다.", () => { p.happiness += 4; sk("항해술", 3); if (Math.random() < 0.2) { p.reputation += 6; achieve("하늘섬의 흔적을 찾음"); log("하늘섬으로 향하는 해류의 흔적을 찾아냄"); } else log("하늘섬의 해류를 찾지 못하고 돌아옴"); }],
+      ["허황된 이야기라며 웃는다", "현실을 본다.", () => { log("하늘섬 이야기를 웃어넘김"); }],
+    ]),
+    jxAuto("모험가", 3, "모험기 출간", "그동안의 여행 기록을 정리한 모험기가 책으로 나왔습니다. 항구 서점마다 당신의 이름이 적힌 책이 놓였습니다.", () => { p.money += ri(80000, 200000); p.reputation += 3; p.knowledge += 2; }, "모험기를 책으로 펴냄"),
+  ],
+  선원: () => [
+    jx("선원", 1, "돛대 위의 망루", "거친 파도 속에 망루 담당 선원이 다쳤습니다. 누군가 돛대 꼭대기에 올라가야 합니다.", [
+      ["자원해서 올라간다", "위험하지만 배를 지킨다.", () => { if (Math.random() < 0.7) { p.reputation += 3; sk("항해술", 2); log("폭풍 속 돛대 망루를 지켜 냄"); } else { p.health -= ri(6, 14); log("돛대에서 미끄러져 다침"); } }],
+      ["갑판에서 밧줄을 잡는다", "제 몫을 한다.", () => { p.combat += 1; log("갑판에서 밧줄을 붙잡고 버팀"); }],
+    ]),
+    jx("선원", 2, "선상 반란의 기미", "선원들 사이에서 선장을 몰아내자는 수군거림이 돌고 있습니다. 당신에게도 같이하자는 말이 왔습니다.", [
+      ["선장에게 몰래 알린다", "의리를 지킨다.", () => { p.reputation += 3; p.relationship -= 2; log("선상 반란 계획을 선장에게 알림"); }],
+      ["모른 척한다", "엮이지 않는다.", () => { if (Math.random() < 0.3) { p.health -= ri(4, 10); log("선상 반란에 휘말려 다침"); } else log("선상 반란 소동을 모른 척함"); }],
+    ]),
+    jxAuto("선원", 3, "적도의 의식", "처음으로 적도를 넘던 날, 고참 선원들이 당신을 바다에 던질 듯 들어 올리며 축하해 주었습니다. 이제 진짜 바다 사나이입니다.", () => { p.happiness += 5; p.relationship += 3; sk("항해술", 1); }, "적도를 넘는 선원 의식을 치름"),
+  ],
+  학자: () => [
+    jx("학자", 1, "금서의 사본", "도서관 지하 서고에서 세계정부가 금지한 책의 사본을 발견했습니다.", [
+      ["몰래 읽는다", "지식을 얻지만 들키면 위험하다.", () => { p.knowledge += 5; if (Math.random() < 0.15) { p.flags.wgHunt = true; log("금서를 읽은 사실이 알려져 감시를 받게 됨"); } else log("지하 서고의 금서를 몰래 읽음"); }],
+      ["제자리에 돌려놓는다", "위험을 피한다.", () => { p.knowledge += 1; log("금서의 사본을 제자리에 돌려놓음"); }],
+    ]),
+    jx("학자", 2, "논문 표절", "당신의 연구를 베낀 논문이 다른 학자의 이름으로 발표되었습니다.", [
+      ["학회에 정식으로 문제를 제기한다", "명예를 되찾는다.", () => { if (Math.random() < 0.6) { p.reputation += 4; log("표절을 밝혀내 연구의 명예를 되찾음"); } else { p.happiness -= 4; log("표절 문제를 제기했지만 받아들여지지 않음"); } }],
+      ["더 좋은 연구로 증명한다", "시간이 걸린다.", () => { p.knowledge += 4; log("표절에 대응하지 않고 새 연구에 몰두함"); }],
+    ]),
+    jxAuto("학자", 3, "제자의 질문", "젊은 제자가 당신도 답하지 못한 질문을 던졌습니다. 그 질문을 붙잡고 몇 달을 고민한 끝에 새로운 실마리를 찾았습니다.", () => { p.knowledge += 4; p.happiness += 3; }, "제자의 질문에서 연구의 실마리를 찾음"),
+  ],
+  과학자: () => [
+    jx("과학자", 1, "실험실 폭발", "새로운 화합물 실험 도중 플라스크에서 불길한 연기가 피어오릅니다.", [
+      ["바로 대피한다", "실험은 망치지만 안전하다.", () => { p.money -= ri(30000, 80000); log("실험실 폭발 직전에 대피함"); }],
+      ["끝까지 데이터를 기록한다", "위험하지만 귀중한 자료가 남는다.", () => { p.knowledge += 5; if (Math.random() < 0.4) { p.health -= ri(8, 18); log("실험실 폭발에 휘말렸지만 귀중한 데이터를 남김"); } else log("폭발 직전까지 실험 데이터를 기록함"); }],
+    ]),
+    jx("과학자", 2, "군의 연구 제안", "어느 왕국의 군대가 당신의 연구를 무기 개발에 쓰고 싶다며 막대한 연구비를 제안했습니다.", [
+      ["제안을 받아들인다", "돈과 설비가 생긴다.", () => { p.money += ri(300000, 800000); p.happiness -= 3; log("왕국 군대의 연구비 제안을 받아들임"); }],
+      ["거절한다", "연구는 사람을 살리는 데 쓴다.", () => { p.reputation += 2; p.happiness += 3; log("무기 개발 제안을 거절함"); }],
+    ]),
+    jxAuto("과학자", 3, "작은 발명의 성공", "항구 사람들의 불편을 덜려고 만든 작은 기계가 뜻밖에 큰 인기를 끌었습니다. 집집마다 당신의 발명품이 하나씩 놓였습니다.", () => { p.money += ri(100000, 300000); p.reputation += 3; p.knowledge += 2; }, "작은 발명품이 큰 인기를 끔"),
+  ],
+  해군: () => [
+    jx("해군", 1, "탈영병", "같은 부대의 동료가 밤에 몰래 배를 타고 도망치려는 걸 목격했습니다. 고향의 가족이 아프다고 합니다.", [
+      ["상관에게 보고한다", "규율은 규율이다.", () => { gainStanding(3); p.relationship -= 3; log("탈영하려던 동료를 보고함"); }],
+      ["못 본 척 보내 준다", "들키면 처벌받는다.", () => { p.relationship += 4; if (Math.random() < 0.25) { gainStanding(-3); log("탈영병을 보내 준 사실이 들켜 징계를 받음"); } else log("가족을 만나러 가는 동료를 못 본 척 보내 줌"); }],
+    ]),
+    jx("해군", 2, "해적선 추격전", "순찰 중 소형 해적선을 발견했습니다. 상대는 섬 사이 좁은 수로로 도망치고 있습니다.", [
+      ["좁은 수로까지 쫓아간다", "공을 세울 기회다." + oddsText(0.15), () => { battle({ foe: "소형 해적선의 해적들", base: 0.15, loseHp: [8, 20], win: () => { gainStanding(4); p.money += ri(50000, 150000); } }); }],
+      ["포위망을 짜고 기다린다", "확실하지만 놓칠 수도 있다.", () => { if (Math.random() < 0.5) { gainStanding(2); log("포위망으로 해적선을 붙잡음"); } else log("포위망을 짰지만 해적선을 놓침"); }],
+    ]),
+    jxAuto("해군", 3, "마을의 감사", "당신의 부대가 해적에게서 지켜 낸 마을 사람들이 기지로 과일과 생선을 한가득 보내왔습니다. 동료들이 당신 어깨를 두드립니다.", () => { p.happiness += 5; p.reputation += 2; gainStanding(2); }, "지켜 낸 마을에서 감사 선물을 받음"),
+  ],
+  해적: () => [
+    jx("해적", 1, "술집의 보물 지도", "술에 취한 늙은 해적이 낡은 보물 지도를 팔겠다고 합니다. 진짜인지 알 수 없습니다.", [
+      ["지도를 사서 찾아간다", "도박이다.", () => { p.money -= ri(30000, 80000); if (Math.random() < 0.35) { p.money += ri(300000, 900000); log("술집에서 산 보물 지도로 실제 보물을 찾음"); } else log("술집에서 산 보물 지도가 가짜였음"); }],
+      ["콧방귀를 뀐다", "그런 지도는 흔하다.", () => { log("술집의 보물 지도를 거들떠보지 않음"); }],
+    ]),
+    jx("해적", 2, "현상금 사냥꾼의 기습", "항구에 내리자마자 수배서를 든 현상금 사냥꾼들이 당신을 에워쌌습니다.", [
+      ["맞서 싸운다", "이기면 악명이 오른다." + oddsText(0.1), () => { battle({ foe: "현상금 사냥꾼 일당", base: 0.1, loseHp: [10, 22], win: () => { p.reputation += 3; if (p.bountyIssued) p.bounty += ri(2000000, 8000000); } }); }],
+      ["뒷골목으로 도망친다", "체면은 구기지만 안전하다.", () => { if (Math.random() < 0.75) log("현상금 사냥꾼들을 따돌림"); else { p.health -= ri(5, 12); log("도망치다 현상금 사냥꾼에게 다침"); } }],
+    ]),
+    jxAuto("해적", 3, "갑판 위의 연회", "오랜 항해 끝에 무사히 섬에 닿은 밤, 선원들이 고기와 술을 잔뜩 꺼내 갑판에서 밤새 노래를 불렀습니다.", () => { p.happiness += 6; p.relationship += 4; }, "선원들과 갑판에서 밤새 연회를 즐김"),
+  ],
+  "현상금 사냥꾼": () => [
+    jx("현상금 사냥꾼", 1, "어린 현상범", "의뢰서의 현상범은 아직 열다섯도 안 된 소년이었습니다. 굶주린 동생들을 먹이려고 상선 창고를 털었다고 합니다.", [
+      ["의뢰대로 잡는다", "일은 일이다.", () => { p.money += ri(80000, 200000); p.happiness -= 4; log("어린 현상범을 붙잡아 넘김"); }],
+      ["놓아주고 의뢰를 포기한다", "돈보다 중요한 게 있다.", () => { p.happiness += 4; p.relationship += 2; log("어린 현상범을 놓아줌"); }],
+    ]),
+    jx("현상금 사냥꾼", 2, "가짜 수배서", "현상금이 높은 수배서를 들고 찾아간 상대가 자신은 누명을 썼다며 증거를 내밀었습니다.", [
+      ["증거를 확인해 본다", "사실이라면 진짜 범인이 따로 있다.", () => { p.knowledge += 2; if (Math.random() < 0.5) { p.reputation += 4; p.money += ri(100000, 250000); log("누명을 밝혀내고 진짜 범인을 잡음"); } else log("증거를 확인했지만 결론을 내지 못함"); }],
+      ["상관없이 넘긴다", "판단은 해군이 한다.", () => { p.money += ri(100000, 200000); p.happiness -= 3; log("누명을 주장하는 현상범을 그대로 넘김"); }],
+    ]),
+    jxAuto("현상금 사냥꾼", 3, "사냥꾼 길드의 소문", "현상금 사냥꾼들이 모이는 술집에서 당신의 이름이 '믿을 만한 사냥꾼'으로 오르내리고 있습니다. 좋은 의뢰가 먼저 들어오기 시작했습니다.", () => { gainStanding(3); p.money += ri(50000, 120000); }, "사냥꾼들 사이에서 믿을 만한 이름으로 알려짐"),
+  ],
+  혁명군: () => [
+    jx("혁명군", 1, "신문 속의 동지", "세계 경제 신문에 체포된 혁명군 동지의 사진이 실렸습니다. 공개 처형이 다음 달로 예정되어 있습니다.", [
+      ["구출 작전에 지원한다", "위험한 임무다." + oddsText(0), () => { battle({ foe: "처형장의 경비대", base: 0, loseHp: [12, 28], win: () => { gainStanding(5); p.relationship += 5; } }); }],
+      ["정보 공작으로 돕는다", "후방에서 움직인다.", () => { p.knowledge += 3; gainStanding(2); log("동지 구출을 위해 정보 공작을 맡음"); }],
+    ]),
+    jx("혁명군", 2, "왕국의 민중 봉기", "압정에 시달리던 한 왕국에서 민중이 들고일어났습니다. 그들은 혁명군의 지도를 원합니다.", [
+      ["직접 가서 봉기를 이끈다", "왕국이 바뀔 수도 있다.", () => { if (Math.random() < 0.5) { gainStanding(6); p.reputation += 4; log("민중 봉기를 이끌어 압정을 무너뜨림"); } else { p.health -= ri(6, 15); gainStanding(1); log("민중 봉기를 도왔지만 진압당함"); } }],
+      ["무기와 식량만 보낸다", "피를 흘리지 않는다.", () => { gainStanding(2); log("봉기한 민중에게 무기와 식량을 보냄"); }],
+    ]),
+    jxAuto("혁명군", 3, "해방된 노예들", "작전으로 풀려난 노예들이 당신에게 고개를 숙였습니다. 그중 한 소년은 자신도 혁명군이 되겠다며 눈을 반짝였습니다.", () => { p.happiness += 5; gainStanding(3); }, "해방된 노예들에게서 감사 인사를 받음"),
+  ],
+};
+JOBX["해군 후보생"] = JOBX["해군"];
+JOBX["해적 견습"] = JOBX["해적"];
+// 직업이 바뀌면 그 직업의 사건은 나오지 않는다
+for (const job of Object.keys(JOBX))
+  for (let n = 1; n <= 3; n++) {
+    const key = `jobx_${job}_${n}`;
+    if (job === "해군" || job === "해적" || job === "혁명군") KEY_STATUS[key] = job;
+    else if (job !== "해군 후보생" && job !== "해적 견습") KEY_JOB[key] = job;
+  }
+function jobExtraScene() {
+  if (p.age < 16 || p.job === "노예" || p.job === "은퇴자" || p.status === "천룡인") return null;
+  const job = p.status === "혁명군" ? "혁명군" : p.job;
+  const f = JOBX[job];
+  if (!f) return null;
+  const seen = p.seenScenes || {};
+  // 아직 안 본 사건을 먼저, 모두 봤다면 오래전에 본 것만
+  const fresh = f().filter((s) => seen[s.key] === undefined || p.age - seen[s.key] >= s.cooldown);
+  return fresh.length ? rand(fresh) : null;
+}
+{
+  const _be69 = buildExtraScenes;
+  buildExtraScenes = function () {
+    const r = _be69.apply(this, arguments);
+    try {
+      if (Math.random() < 0.4) {
+        const s = jobExtraScene();
+        if (s) scenes.push(s);
+      }
+    } catch (e) {}
+    return r;
+  };
+}
+
+// ── 어린 열매 능력자 사건 (6~15세, 각각 한 번) ──
+function kidFruitPool() {
+  const f = p.fruit;
+  if (!f || p.age < 6 || p.age > 15) return [];
+  const t = fruitType(f),
+    swim = p.flags.powerSwim;
+  const power =
+    t === "자연계" ? `몸이 ${f.replace(" 열매", "")}처럼 변하는` : t === "동물계" ? "짐승의 모습으로 변하는" : "이상한";
+  return [
+    K("fruit_bully", "괴롭히는 아이들", `동네 큰 아이들이 당신을 둘러쌌습니다. "악마의 열매를 먹은 괴물!" "바다에 던지면 가라앉는대!" 하며 부두 끝으로 떠밀기 시작합니다.`, [
+      { title: "능력을 써서 맞선다", desc: "겁을 줄 수 있지만 사고가 날 수도 있다.", run: () => { p.fruitMastery = Math.min(40, (p.fruitMastery || 0) + 2); if (kidCheck(0.5)) { p.combat += 1; mem("열매 능력으로 괴롭히던 아이들을 쫓아냄"); log("열매 능력으로 괴롭히던 아이들을 쫓아냄"); } else { p.relationship -= 3; log("능력을 쓰다 아이 하나를 다치게 해 어른들에게 혼남"); } } },
+      { title: "어른에게 도움을 청한다", desc: "안전하지만 놀림은 계속될지 모른다.", run: () => { p.relationship += 2; p.happiness -= 2; log("괴롭힘을 어른에게 알림"); } },
+      { title: swim ? "스스로 바다에 뛰어든다" : "꾹 참고 버틴다", desc: swim ? "헤엄칠 수 있다는 건 아무도 모른다." : "마음에 상처가 남는다.", run: () => { if (swim) { p.happiness += 4; mem("바다에 뛰어들어 아이들을 놀라게 함"); log("바다에 뛰어들어 헤엄쳐 보이자 괴롭히던 아이들이 도망침"); } else { p.happiness -= 5; mem("괴물이라 불리던 날"); log("열매 능력자라는 이유로 괴롭힘을 당함"); } } },
+    ]),
+    K("fruit_swimclass", "혼자 남은 모래사장", "여름이 되자 마을 아이들이 모두 바다로 뛰어들었습니다. 열매 능력자인 당신만 모래사장에 혼자 앉아 있습니다.", [
+      { title: "모래성을 쌓으며 논다", desc: "혼자서도 즐겁게.", run: () => { p.happiness += 1; sk("제작", 2); log("바다 대신 모래사장에서 모래성을 쌓음"); } },
+      { title: "얕은 물에 발만 담가 본다", desc: "조금 위험하다.", run: () => { if (swim || Math.random() < 0.7) { p.happiness += 3; log("얕은 물에서 친구들과 물장구를 침"); } else { p.health -= ri(3, 8); log("파도에 휩쓸려 가라앉을 뻔하다 구조됨"); } } },
+    ]),
+    K("fruit_prank", "능력으로 친 장난", `${power} 힘으로 장난을 치다가 시장 좌판 하나를 통째로 엎어 버렸습니다. 상인이 얼굴이 시뻘게져서 달려옵니다.`, [
+      { title: "솔직하게 사과한다", desc: "용돈으로 물어 준다.", run: () => { p.money -= ri(3000, 10000); p.relationship += 2; log("능력 장난으로 엎은 좌판을 사과하고 물어 줌"); } },
+      { title: "능력을 써서 도망친다", desc: "들키면 더 크게 혼난다.", run: () => { p.fruitMastery = Math.min(40, (p.fruitMastery || 0) + 1); if (Math.random() < 0.5) log("능력을 써서 성난 상인에게서 도망침"); else { p.happiness -= 3; p.relationship -= 2; log("도망치다 붙잡혀 부모님께 크게 혼남"); } } },
+    ]),
+    K("fruit_showoff", "비밀로 할까, 자랑할까", "친한 친구가 당신의 능력을 보여 달라고 조릅니다. 부모님은 아무에게도 보여 주지 말라고 하셨습니다.", [
+      { title: "몰래 보여 준다", desc: "둘만의 비밀이다.", run: () => { p.relationship += 3; if (Math.random() < 0.3) { p.flags.fruitRumor = true; log("친구에게 보여 준 능력이 동네에 소문남"); } else log("친구에게만 몰래 능력을 보여 줌"); } },
+      { title: "약속을 지킨다", desc: "친구는 조금 서운해한다.", run: () => { p.relationship -= 1; p.knowledge += 1; log("부모님과의 약속대로 능력을 숨김"); } },
+    ]),
+    K("fruit_stranger", "능력을 노리는 어른", "낯선 어른이 사탕을 내밀며 '멋진 능력을 가졌다며? 아저씨네 배에 가면 더 좋은 걸 보여 줄게.'라고 속삭입니다. 눈빛이 이상합니다.", [
+      { title: "곧바로 도망쳐 어른을 부른다", desc: "가장 안전한 방법이다.", run: () => { p.knowledge += 1; log("능력자를 노리는 수상한 어른에게서 도망침"); } },
+      { title: "능력을 써서 쫓아낸다", desc: "겁을 주면 물러날지도 모른다.", run: () => { p.fruitMastery = Math.min(40, (p.fruitMastery || 0) + 2); if (kidCheck(0.45)) { p.combat += 1; log("열매 능력으로 수상한 어른을 쫓아냄"); } else hurt(5, 12, "수상한 어른에게 붙잡힐 뻔하다 간신히 빠져나옴"); } },
+    ]),
+    KA("fruit_practice", "몰래 하는 능력 연습", "밤마다 뒷산에 올라 몰래 능력을 연습했습니다. 처음엔 제멋대로 튀어나오던 힘이 조금씩 말을 듣기 시작합니다.", () => { p.fruitMastery = Math.min(40, (p.fruitMastery || 0) + 3); p.combat += 1; }, "뒷산에서 몰래 열매 능력을 연습함"),
+    KA("fruit_rescue", "능력으로 구한 친구", "절벽에서 미끄러진 친구를 열매 능력으로 붙잡아 끌어올렸습니다. 그날 이후 아무도 당신을 괴물이라 부르지 않았습니다.", () => { p.relationship += 5; p.happiness += 4; mem("능력으로 친구를 구한 날"); }, "열매 능력으로 절벽에서 떨어질 뻔한 친구를 구함"),
+  ];
+}
+{
+  const _kpp69 = kidPlacePool;
+  kidPlacePool = function () {
+    const r = _kpp69.apply(this, arguments) || [];
+    try {
+      return r.concat(kidFruitPool());
+    } catch (e) {
+      return r;
+    }
+  };
+}
+
+// ── 그림 켜기·끄기는 출생 설정에서만 ──
+{
+  const ab = document.getElementById("artBtn");
+  if (ab) ab.remove();
+  const sel = document.getElementById("artSetting");
+  if (sel) {
+    sel.value = showArt ? "on" : "off";
+    sel.addEventListener("change", () => setShowArt(sel.value === "on"));
+  }
+}
+/* =========================================================== */
+
+/* ===================== v70: 해적 박람회 (일생에 단 한 번) ===================== */
+// 해적·해군·현상금 사냥꾼·모험가·혁명군일 때 아주 낮은 확률로 한 번만 열린다.
+// 진행: 해적 박람회의 참가 → 강자들과의 만남 → ○○와 무얼 하겠습니까?
+const EXPO_STARS = [
+  { id: "luffy", name: "몽키 D. 루피", short: "루피", foe: "몽키 D. 루피", base: -0.45, tags: ["Luffy"], line: "고기를 양손에 든 채 웃고 있는 밀짚모자의 청년" },
+  { id: "zoro", name: "롤로노아 조로", short: "조로", foe: "삼도류 검사 롤로노아 조로", base: -0.3, tags: ["Zoro"], line: "세 자루의 검을 찬 채 벽에 기대 졸고 있는 초록 머리의 검사" },
+  { id: "sanji", name: "상디", short: "상디", foe: "'검은다리' 상디", base: -0.2, tags: ["Sanji"], line: "담배를 문 채 여성 참가자들에게 요리를 나르는 금발의 요리사" },
+  { id: "bullet", name: "더글라스 불릿", short: "불릿", foe: "'귀신의 후계자' 더글라스 불릿", base: -0.45, tags: [], line: "주변의 쇳덩이를 모두 끌어모아 몸에 두르는 거한" },
+  { id: "mihawk", name: "쥬라큘 미호크", short: "미호크", foe: "세계 최강의 검사 쥬라큘 미호크", base: -0.45, tags: ["Mihawk"], line: "십자가 모양의 흑도를 등에 멘 매의 눈을 가진 검사" },
+  { id: "hancock", name: "보아 핸콕", short: "핸콕", foe: "해적 여제 보아 핸콕", base: -0.3, tags: [], line: "모두가 넋을 잃고 바라보는 해적 여제" },
+  { id: "smoker", name: "스모커", short: "스모커", foe: "해군 스모커", base: -0.15, tags: [], line: "시가 두 대를 한꺼번에 문 채 사람들 틈을 노려보는 해군" },
+  { id: "lucci", name: "롭 루치", short: "루치", foe: "CP0 롭 루치", base: -0.25, tags: [], line: "어깨에 비둘기를 얹은 채 말없이 서 있는 사이퍼 폴 요원" },
+  { id: "sabo", name: "사보", short: "사보", foe: "혁명군 참모총장 사보", base: -0.35, tags: [], line: "실크해트를 쓰고 쇠파이프를 든 혁명군 참모총장" },
+];
+const EXPO_JOBS = ["해적", "현상금 사냥꾼", "모험가"];
+function expoEligible() {
+  return p.status === "해군" || p.status === "혁명군" || p.status === "해적" || EXPO_JOBS.includes(p.job);
+}
+function expoStyleName(st) {
+  return `${st.short}의 전투 스타일`;
+}
+// 박람회에서 전수받은 전투 스타일이 있으면 특수 능력치 한도 +30
+{
+  const _sc70 = specialCap;
+  specialCap = function () {
+    return _sc70.apply(this, arguments) + (p && p.flags && p.flags.expoStyle ? 30 : 0);
+  };
+}
+function expoActScene(st) {
+  const sty = expoStyleName(st);
+  return {
+    essential: true,
+    major: true,
+    key: "expo_act",
+    tags: st.tags.length ? st.tags : ["island_델타 섬"],
+    title: `${st.name}${wa(st.name)} 무얼 하겠습니까?`,
+    body: `${st.name}${ga(st.name)} 당신을 바라봅니다. 박람회의 소란 속에서도 이 사람 주변만은 공기가 다릅니다. 이런 기회는 평생 다시 오지 않을 것입니다.`,
+    choices: [
+      {
+        title: "전투를 신청한다",
+        desc: "박람회의 결투라 목숨까지 잃지는 않는다." + oddsText(st.base),
+        run: () => {
+          if (
+            battle({
+              foe: st.foe,
+              base: st.base,
+              loseHp: [12, 30],
+              nonFatal: true,
+              win: () => {
+                p.reputation += 10;
+                gainStanding(8);
+                p.combat = clamp(p.combat + 3);
+                addNews(`해적 박람회의 이변 — ${p.name}, ${st.name}${eul(st.name)} 꺾다`);
+              },
+            })
+          ) {
+            achieve(`해적 박람회에서 ${st.short}${eul(st.short)} 이김`);
+            log(`해적 박람회에서 ${st.name}${wa(st.name)} 싸워 이김`);
+          } else log(`해적 박람회에서 ${st.name}에게 도전했지만 패배함`);
+        },
+      },
+      {
+        title: "기술을 전수받는다",
+        desc: `'${sty}'을(를) 사용 중인 능력에 등록한다. (특수 능력치 한도 +30)`,
+        run: () => {
+          addAbility(sty);
+          p.flags.expoStyle = sty;
+          p.combat = clamp(p.combat + 2);
+          achieve(`${st.short}에게 전투 스타일을 전수받음`);
+          log(`해적 박람회에서 ${st.name}에게 '${sty}'을(를) 전수받음 (특수 능력치 한도 +30)`);
+        },
+      },
+      {
+        title: "대화만 조금 나눈다",
+        desc: "평생 기억에 남을 이야기를 듣는다.",
+        run: () => {
+          p.happiness += 8;
+          p.knowledge += 2;
+          p.relationship += 2;
+          log(`해적 박람회에서 ${st.name}${wa(st.name)} 이야기를 나눔`);
+        },
+      },
+    ],
+  };
+}
+function expoMeetScene() {
+  return {
+    essential: true,
+    major: true,
+    key: "expo_meet",
+    tags: ["island_델타 섬"],
+    title: "강자들과의 만남",
+    body:
+      "박람회장 한가운데에는 이름만 들어도 바다가 술렁이는 강자들이 모여 있습니다.\n\n" +
+      EXPO_STARS.map((s) => `• ${s.line} — ${s.name}`).join("\n") +
+      "\n\n누구에게 다가가겠습니까?",
+    choices: EXPO_STARS.map((st) => ({
+      title: `${st.name}에게 다가간다`,
+      desc: st.line,
+      run: () => {
+        p.flags.expoStar = st.id;
+        log(`해적 박람회에서 ${st.name}에게 다가감`);
+        scenes.splice(sceneIndex + 1, 0, expoActScene(st));
+      },
+    })),
+  };
+}
+function pirateExpoScene() {
+  if (p.flags.expoOffered || p.age < 18 || p.age > 70 || p.job === "노예" || !expoEligible()) return null;
+  if (Math.random() >= 0.005) return null; // 아주아주 낮은 확률 (해마다 0.5%)
+  p.flags.expoOffered = true; // 일생에 단 한 번
+  const navy = p.status === "해군";
+  return {
+    essential: true,
+    major: true,
+    key: "expo_invite",
+    tags: ["island_델타 섬"],
+    title: "해적 박람회의 참가",
+    body: navy
+      ? "해군 정보부에 극비 첩보가 들어왔습니다. 신세계의 델타 섬에서 전설의 해적왕 골 D. 로저가 남긴 보물을 건 '해적 박람회'가 열린다는 것입니다. 바다의 강자들이 한자리에 모입니다.\n\n신분을 숨기고 잠입하면 그들을 가까이에서 볼 수 있을 것입니다."
+      : "바다 곳곳에 기묘한 초대장이 뿌려졌습니다. 신세계의 델타 섬에서 해적왕 골 D. 로저가 남긴 보물을 건 '해적 박람회'가 열린다고 합니다. 이름 있는 해적과 강자들이 모두 모여든다는 소문입니다.\n\n박람회에 참가하겠습니까?",
+    choices: [
+      {
+        title: navy ? "신분을 숨기고 잠입한다" : "해적 박람회에 참가한다",
+        desc: "신세계의 델타 섬으로 향한다.",
+        run: () => {
+          const d = places.find((x) => x.name === "델타 섬");
+          if (d) {
+            p.place = d;
+            p.sea = d.sea;
+            markSea();
+          }
+          achieve("해적 박람회 참가");
+          log(navy ? "신분을 숨기고 델타 섬의 해적 박람회에 잠입함" : "델타 섬의 해적 박람회에 참가함");
+          scenes.splice(sceneIndex + 1, 0, expoMeetScene());
+        },
+      },
+      {
+        title: "가지 않는다",
+        desc: "수상한 초대장일 뿐이다.",
+        run: () => log("해적 박람회의 초대를 무시함"),
+      },
+    ],
+  };
+}
+{
+  const _be70 = buildExtraScenes;
+  buildExtraScenes = function () {
+    const r = _be70.apply(this, arguments);
+    try {
+      const s = pirateExpoScene();
+      if (s) scenes.push(s);
+    } catch (e) {}
+    return r;
+  };
+}
+/* =========================================================== */
+
+/* ===================== v66: 전략 전투 (Slay the Spire 풍 행동 선택) ===================== */
+// 기존 battle()의 승률 계산·승패 판정·결과 반영(사망·명성·현상금·사황 칭호·사건 진행)은 그대로 둔다.
+// 바뀌는 것은 승패를 정하던 한 번의 확률 굴림뿐이다. 선택지 안에서 battle()이 불리면
+//  ① 선택 직전 상태로 되돌리고 ② 턴제 전투를 치른 뒤 ③ 같은 선택을 다시 실행하면서 그 승패를 넘겨준다.
+// 턴제 전투의 공격력은 기존 승률(winChance·minChance·보정 포함)에 맞춰 보정한다. (기존 확률로만 판정하려면 '전략 전투'를 끈다)
+// 무난하게 싸우면 기존 승률과 비슷하고, 적의 예고를 읽고 잘 싸우면 조금 더 유리해진다.
+let tacOn = (() => {
+  try {
+    return localStorage.getItem("opl_tactical") !== "off";
+  } catch (e) {
+    return true;
+  }
+})();
+function setTacOn(v) {
+  tacOn = !!v;
+  try {
+    localStorage.setItem("opl_tactical", v ? "on" : "off");
+  } catch (e) {}
+  const b = document.getElementById("tacBtn");
+  if (b) b.textContent = v ? "⚔️ 전략 전투: 켜짐" : "⚔️ 전략 전투: 꺼짐";
+}
+const TAC = { probe: false, inRun: false, results: [], idx: 0, active: false };
+// 사람이 아닌 재해나 자기 수련은 턴제로 싸울 대상이 아니므로 기존 굴림을 쓴다
+const TAC_SKIP = /해일|포격|자신의 한계/;
+
+// ── battle() 연결 지점 ──
+function tacBattlePeek(foe, base) {
+  if (!TAC.probe || !TAC.inRun || TAC_SKIP.test(String(foe))) return null;
+  const r = TAC.idx < TAC.results.length ? TAC.results[TAC.idx] : null;
+  return r && r.base === base ? r : null;
+}
+function tacBattleHook(info) {
+  if (!TAC.probe || !TAC.inRun) return null;
+  if (!tacOn || TAC_SKIP.test(String(info.foe)) || !(info.ch < 0.999))
+    return null;
+  if (TAC.idx < TAC.results.length) return TAC.results[TAC.idx++];
+  const e = new Error("tactical battle intercept");
+  e.__tac = true;
+  e.info = info;
+  throw e;
+}
+function tacRunChoice(c) {
+  TAC.inRun = true;
+  try {
+    c.run();
+  } finally {
+    TAC.inRun = false;
+  }
+}
+
+// ── 선택 직전 상태 저장·복원 (객체의 정체성을 유지한 채 값만 되돌린다) ──
+function TacNode(ref, arr) {
+  this.ref = ref;
+  this.arr = arr;
+  this.props = null;
+}
+function tacSnap(root) {
+  const seen = new Map();
+  const rec = (o) => {
+    if (o === null || typeof o !== "object") return o;
+    if (seen.has(o)) return seen.get(o);
+    const n = new TacNode(o, Array.isArray(o));
+    seen.set(o, n);
+    n.props = n.arr ? o.map(rec) : Object.keys(o).map((k) => [k, rec(o[k])]);
+    return n;
+  };
+  return rec(root);
+}
+function tacRestore(root) {
+  const done = new Set();
+  const rec = (n) => {
+    if (!(n instanceof TacNode)) return n;
+    if (done.has(n)) return n.ref;
+    done.add(n);
+    const o = n.ref;
+    if (n.arr) {
+      o.length = 0;
+      n.props.forEach((v, i) => (o[i] = rec(v)));
+    } else {
+      for (const k of Object.keys(o)) delete o[k];
+      for (const [k, v] of n.props) o[k] = rec(v);
+    }
+    return o;
+  };
+  return rec(root);
+}
+function tacGuardChoice(proceed) {
+  if (!tacOn || TAC.active || !p) {
+    proceed();
+    return;
+  }
+  const pRef = p,
+    snap = tacSnap(p),
+    sc = scenes.slice(),
+    si = sceneIndex,
+    results = [];
+  const attempt = () => {
+    TAC.probe = true;
+    TAC.results = results;
+    TAC.idx = 0;
+    try {
+      proceed();
+    } catch (e) {
+      TAC.probe = false;
+      TAC.inRun = false;
+      if (!(e && e.__tac)) throw e;
+      // 선택 직전으로 되돌린다
+      p = pRef;
+      tacRestore(snap);
+      scenes.length = 0;
+      sc.forEach((x) => scenes.push(x));
+      sceneIndex = si;
+      const lg = $("log");
+      if (lg)
+        lg.innerHTML = p.history
+          .slice(0, 30)
+          .map((x) => `<div>${x}</div>`)
+          .join("");
+      awaiting = false;
+      try {
+        render();
+      } catch (er) {}
+      TAC.active = true;
+      tacOpenFight(e.info, (res) => {
+        TAC.active = false;
+        results.push(res);
+        attempt();
+      });
+      return;
+    }
+    TAC.probe = false;
+    TAC.results = [];
+    TAC.idx = 0;
+  };
+  attempt();
+}
+
+// ── 난수 (보정 시뮬레이션용 시드 난수) ──
+function tacRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ── 캐릭터 능력 읽기 (p를 바꾸지 않는다) ──
+const TAC_SWORDS = [
+  "화도 일문자",
+  "엔마",
+  "키코쿠",
+  "시구레",
+  "유바시리",
+  "라그니르 (철뢰)",
+];
+function tacAbilities() {
+  const H = p.haki || [],
+    L = p.hakiLv || {},
+    ab = p.abilities || [];
+  const has = (h) => H.includes(h) || ab.includes(h + " 패기");
+  const lv = (h) => (has(h) ? Math.max(10, Number(L[h]) || 10) : 0);
+  const swords = TAC_SWORDS.filter((s) => ab.includes(s));
+  const swordSkill = Number(p.kid && p.kid.skills && p.kid.skills.검술) || 0;
+  const fruits = [p.fruit, ...(p.extraFruits || [])].filter(Boolean);
+  return {
+    arm: lv("무장색"),
+    obs: lv("견문색"),
+    king: lv("패왕색"),
+    rokushiki: ab.includes("육식"),
+    sword: swords.length ? Math.max(40, swordSkill) : swordSkill >= 15 ? swordSkill : 0,
+    swordName: swords[0] || null,
+    fruits: fruits.slice(0, 2),
+    logia: fruitType(p.fruit) === "자연계",
+    rubber: fruits.includes("고무고무 열매"),
+    awakened: !!(p.flags && p.flags.awakened),
+    mastery: Number(p.fruitMastery) || 0,
+    combat: Number(p.combat) || 0,
+    health: Math.max(1, Number(p.health) || 1),
+  };
+}
+
+// ── 악마의 열매 전용 기술: 게임에 실제로 있는 열매만 연결한다 ──
+// [기술 이름, 효과 유형]  유형: blast 강타 · pierce 관통 · multi 연타 · burn 지속 피해 · guard 방어 · evade 회피
+//                            heal 회복 · stun 행동 방해 · drain 흡수 · buff 변신 강화
+const TAC_FRUIT = {
+  "흔들흔들 열매": ["진동 — 대지진의 일격", "blast"],
+  "고무고무 열매": ["고무고무 개틀링", "multi"],
+  "물고기물고기 열매 모델 청룡": ["청룡의 열식", "burn"],
+  "마그마그마 열매": ["대분화", "burn"],
+  "번쩍번쩍 열매": ["빛의 연탄", "multi"],
+  "얼음얼음 열매": ["아이스 에이지", "stun"],
+  "용용 열매 모델 니드호그": ["니드호그의 포효", "blast"],
+  "힘힘 열매": ["힘힘 — 괴력 해방", "blast"],
+  "어둠어둠 열매": ["어둠의 소용돌이", "drain"],
+  "하비하비 열매": ["하비하비 — 능력 해방", "pierce"],
+  "쿠릉쿠릉 열매": ["엘 토르", "blast"],
+  "쿠궁쿠궁 열매": ["쿠궁쿠궁 — 능력 해방", "blast"],
+  "수술수술 열매": ["룸 — 감마 나이프", "pierce"],
+  "이글이글 열매": ["화권", "burn"],
+  "모래모래 열매": ["사블레스 — 수분 흡수", "drain"],
+  "실실 열매": ["실 — 오버히트", "pierce"],
+  "떡떡 열매": ["떡 창", "pierce"],
+  "새새 열매 모델 불사조": ["재생의 푸른 불꽃", "heal"],
+  "개개 열매 모델 오오쿠치노마카미": ["냉기의 포효", "stun"],
+  "독독 열매": ["독룡 히드라", "burn"],
+  "고양이고양이 열매 모델 표범": ["표범 형태 — 맹수화", "buff"],
+  "폭폭 열매": ["폭폭 — 폭발 일격", "blast"],
+  "싹뚝싹뚝 열매": ["싹뚝싹뚝 — 절단", "pierce"],
+  "뭉게뭉게 열매": ["화이트 블로", "stun"],
+  "눈눈 열매": ["눈보라", "stun"],
+  "늪늪 열매": ["늪 삼키기", "drain"],
+  "무기무기 열매": ["무기무기 — 무기 변형", "multi"],
+  "홀로홀로 열매": ["네거티브 홀로우", "stun"],
+  "그림자그림자 열매": ["그림자 강화", "buff"],
+  "꽃꽃 열매": ["꽃 피우기 — 클러치", "pierce"],
+  "문문 열매": ["에어 도어", "evade"],
+  "소소 열매 모델 기린": ["기린 형태 — 참격", "pierce"],
+  "용용 열매 모델 알로사우루스": ["공룡 형태 — 돌진", "buff"],
+  "용용 열매 모델 브라키오사우루스": ["거체 짓밟기", "blast"],
+  "고양이고양이 열매 모델 검치호": ["검치호 형태 — 맹수화", "buff"],
+  "가시가시 열매": ["가시 찌르기", "pierce"],
+  "흉내흉내 열매": ["흉내 — 기만", "evade"],
+  "스프링스프링 열매": ["스프링 저격", "pierce"],
+  "투명투명 열매": ["투명화 기습", "evade"],
+  "느릿느릿 열매": ["느림보 빔", "stun"],
+  "밀랍밀랍 열매": ["캔들 월", "guard"],
+  "킬로킬로 열매": ["1만 킬로 프레스", "blast"],
+  "동강동강 열매": ["분리 — 동강동강 포", "evade"],
+  "매끈매끈 열매": ["매끈매끈 — 미끄러뜨리기", "evade"],
+  "소소 열매 모델 바이슨": ["바이슨 돌진", "buff"],
+  "개개 열매 모델 닥스훈트": ["닥스훈트 형태 — 물어뜯기", "buff"],
+  "새새 열매 모델 팔콘": ["팔콘 강하", "evade"],
+  "두더지두더지 열매": ["땅속 기습", "evade"],
+  "개개 열매 모델 자칼": ["자칼 형태 — 물어뜯기", "buff"],
+  "말말 열매": ["질주 돌격", "buff"],
+  "코끼리코끼리 열매": ["코끼리 형태 — 짓누르기", "blast"],
+  "뱀뱀 열매 모델 아나콘다": ["조이기", "stun"],
+  "뱀뱀 열매 모델 킹코브라": ["맹독 송곳니", "burn"],
+  "사람사람 열매": ["사람사람 — 지혜의 일격", "pierce"],
+  "사람사람 열매 모델 원붕이": ["원붕이 형태 — 변신", "buff"],
+  "용용 열매 모델 스피노사우루스": ["공룡 형태 — 돌진", "buff"],
+  "용용 열매 모델 파키케팔로사우루스": ["박치기", "blast"],
+  "용용 열매 모델 트리케라톱스": ["뿔 찌르기", "pierce"],
+  "벌레벌레 열매 모델 장수풍뎅이": ["강철 갑각", "guard"],
+  "거미거미 열매 모델 로사미갈레": ["거미줄 속박", "stun"],
+};
+function tacFruitDef(f) {
+  if (TAC_FRUIT[f]) return TAC_FRUIT[f];
+  const t = fruitType(f),
+    stem = String(f).split(" ")[0];
+  if (t === "자연계") return [`${stem} — 자연계 해방`, "blast"];
+  if (t === "동물계") return [`${stem} — 수형 변신`, "buff"];
+  return [`${stem} — 능력 해방`, "pierce"];
+}
+
+// ── 보스 판별 (표시용 패턴만 바꾸며, 능력치·승률은 기존 값을 그대로 쓴다) ──
+function tacBossKind(foe) {
+  const f = String(foe);
+  if (/이무/.test(f)) return "imu";
+  if (/카이도/.test(f)) return "kaido";
+  if (/빅맘|빅 맘|링링/.test(f)) return "bigmom";
+  if (/티치|검은수염/.test(f)) return "teach";
+  if (/샹크스|붉은 머리|빨간 머리/.test(f)) return "shanks";
+  if (/뉴게이트|흰 ?수염/.test(f)) return "whitebeard";
+  if (/루피/.test(f)) return "luffy";
+  if (/아카이누|아오키지|키자루|후지토라|료쿠규|가프|센고쿠|해군 대장|대장 부대/.test(f))
+    return "admiral";
+  if (
+    /미호크|세계 최강의 검사|크로커다일|도플라밍고|쿠마|핸콕|징베|모리아|트라팔가|버기|칠무해/.test(f)
+  )
+    return "warlord";
+  return null;
+}
+const TAC_BOSS_TITLE = {
+  imu: "최종 보스",
+  kaido: "사황",
+  bigmom: "사황",
+  teach: "사황",
+  shanks: "사황",
+  whitebeard: "사황",
+  luffy: "숙명의 상대",
+  admiral: "해군 최고 전력",
+  warlord: "칠무해",
+};
+
+// ── 적 행동 만들기 ──
+// 표시되는 예고 객체가 곧 실제로 실행되는 행동이다. 수치도 예고할 때 정해져 바뀌지 않는다.
+function tacI(st, kind, name, o = {}) {
+  const hits = o.hits || (o.m ? 1 : 0);
+  return {
+    kind,
+    name,
+    icon:
+      kind === "heavy"
+        ? "💥"
+        : kind === "block"
+          ? "🛡️"
+          : kind === "buff"
+            ? "🔥"
+            : kind === "special"
+              ? "✨"
+              : "⚔️",
+    hits,
+    dmg: o.m ? Math.max(1, Math.round((st.E * o.m) / hits)) : 0,
+    block: o.b ? Math.round(st.A0 * o.b) : 0,
+    eff: o.eff || null,
+    note: o.note || "",
+  };
+}
+function tacWeighted(rng, list) {
+  const tot = list.reduce((a, x) => a + x[0], 0);
+  let r = rng() * tot;
+  for (const x of list) if ((r -= x[0]) <= 0) return x[1];
+  return list[list.length - 1][1];
+}
+// ── 전투 등급 ──
+// 일반 적: 짧은 간단 전투(기본 행동 + 보유 능력) · 강적: 전략 행동까지 쓰는 전략 전투 · 사황·루피·이무: 고유 패턴 + 단계별 전투
+const TAC_BOSS_KINDS = ["kaido", "bigmom", "teach", "shanks", "whitebeard", "luffy", "imu"];
+function tacTier(kind, fp) {
+  if (TAC_BOSS_KINDS.includes(kind)) return "boss";
+  if (kind || fp >= 75) return "strong";
+  return "normal";
+}
+const TAC_TIER_LABEL = { normal: "일반 전투", strong: "강적 · 전략 전투", boss: "보스 · 단계별 전투" };
+// 단계 이름. 체력이 다 떨어지면 다음 단계로 넘어가며 보스의 전투 방식이 바뀐다.
+const TAC_PHASES = {
+  kaido: ["1단계 — 백수의 카이도", "2단계 — 인수형 카이도"],
+  bigmom: ["1단계 — 빅맘", "2단계 — 식탐에 미친 빅맘"],
+  teach: ["1단계 — 검은수염", "2단계 — 두 열매의 힘"],
+  shanks: ["1단계 — 붉은 머리", "2단계 — 패왕색 해방"],
+  whitebeard: ["1단계 — 흰수염", "2단계 — 세계를 흔드는 힘"],
+  luffy: ["1단계 — 밀짚모자 루피", "2단계 — 기어 5"],
+  imu: ["1단계 — 판게아 성의 그림자", "2단계 — 변신한 이무", "3단계 — 세계의 지배자"],
+};
+// 보스별 고유 특성 (대응 전략이 서로 다르다)
+const TAC_TRAIT = {
+  kaido: "용의 비늘: 방어 무시가 아닌 공격의 피해 -25%",
+  bigmom: "식탐: 2단계에서 3턴마다 공격력이 쌓인다 — 빨리 끝내야 한다",
+  teach: "블랙 홀: 쌓아 둔 집중·변신·차지를 빨아들인다",
+  shanks: "견문색 간파: 간파 태세에 큰 공격을 하면 반격당한다",
+  whitebeard: "진동: 강타가 방어 태세를 절반 꿰뚫는다",
+  luffy: "고무 몸: 베기·방어 무시가 아닌 공격의 피해 -30%",
+  imu: "불멸의 재생: 1단계에서 지속 피해가 없으면 매 턴 회복한다",
+};
+
+// ── 적 행동 만들기 ──
+// 표시되는 예고 객체가 곧 실제로 실행되는 행동이다. 수치도 예고할 때 정해져 바뀌지 않는다.
+function tacNextIntent(st, rng) {
+  const k = st.kind,
+    last = st.lastIntentKind,
+    ph = st.phase,
+    noHeavy = last === "heavy";
+  st.step++;
+  if (k === "kaido") {
+    if (ph === 0)
+      return tacWeighted(rng, [
+        [4, tacI(st, "atk", "곤봉 휘두르기", { m: 1 })],
+        [noHeavy ? 0 : 3, tacI(st, "heavy", "뇌명팔괘", { m: 2 })],
+        [last === "block" ? 0 : 2, tacI(st, "block", "용의 비늘", { b: 1.2 })],
+        [2, tacI(st, "special", "열식 — 불꽃 숨결", { m: 0.6, eff: { burn: [0.25, 3] } })],
+      ]);
+    return tacWeighted(rng, [
+      [3, tacI(st, "atk", "곤봉 연타", { m: 1.1, hits: 2 })],
+      [noHeavy ? 0 : 3, tacI(st, "heavy", "강룡 뇌명팔괘", { m: 2.3 })],
+      [2, tacI(st, "special", "취권 — 술 취한 난동", { m: 1.2, eff: { weak: 1 } })],
+    ]);
+  }
+  if (k === "bigmom") {
+    if (ph === 1 && st.step % 3 === 0)
+      return tacI(st, "buff", "식탐 — 과자를 내놔라!", { eff: { str: 1.15 }, note: "공격력이 계속 쌓인다" });
+    return tacWeighted(rng, [
+      [3, tacI(st, "special", "프로메테우스", { m: 0.7, eff: { burn: [0.3, 3] } })],
+      [noHeavy ? 0 : 3, tacI(st, "heavy", "제우스 — 천상의 번개", { m: 2.1 })],
+      [last === "block" ? 0 : 3, tacI(st, "block", "강철 같은 피부", { b: 1.6, note: "다음 턴엔 방어 무시 기술이나 차지가 유리" })],
+      [2, tacI(st, "special", "소울 포커스 — 수명 빼앗기", { m: 1, eff: { drain: 0.5 } })],
+    ]);
+  }
+  if (k === "teach")
+    return tacWeighted(rng, [
+      [last === "special" ? 0 : 3, tacI(st, "special", "흡인 — 블랙 홀", { m: 0.8, eff: { seal: 1, strip: true }, note: "다음 턴 열매·패기 봉인" })],
+      [noHeavy ? 0 : 3, ph === 1 ? tacI(st, "heavy", "진동 — 해진", { m: 2.2, eff: { halfBlock: true } }) : tacI(st, "heavy", "어둠의 일격", { m: 1.9 })],
+      [3, tacI(st, "atk", "어둠의 손아귀", { m: 1, eff: { weak: 1 } })],
+      [1, tacI(st, "block", "어둠의 장막", { b: 1.1 })],
+    ]);
+  if (k === "shanks") {
+    const resist = st.ab.king > 0;
+    return tacWeighted(rng, [
+      [last === "special" ? 0 : 2, tacI(st, "special", resist ? "패왕색 위압 (패왕색으로 버팀)" : "패왕색 위압", { eff: { weak: resist ? 1 : 2 } })],
+      [3, tacI(st, "atk", "신속의 검", { m: 1.2, hits: 2 })],
+      [noHeavy ? 0 : 3, tacI(st, "heavy", "패왕색을 두른 일격", { m: 2.2 })],
+      [last === "block" ? 0 : 3, tacI(st, "block", "견문색 간파", { b: 1, eff: { parry: 1 }, note: "큰 공격을 하면 반격당한다" })],
+    ]);
+  }
+  if (k === "whitebeard")
+    return tacWeighted(rng, [
+      [3, tacI(st, "atk", "총운 휘두르기", { m: 1.1 })],
+      [noHeavy ? 0 : 3, tacI(st, "heavy", "진동 — 해진", { m: 2.2, eff: { halfBlock: true } })],
+      [2, tacI(st, "block", "무장색 방어", { b: 1.3 })],
+      [last === "buff" ? 0 : 2, tacI(st, "buff", "대기를 움켜쥔다", { eff: { str: 1.15 } })],
+    ]);
+  if (k === "luffy") {
+    if (ph === 0)
+      return tacWeighted(rng, [
+        [3, tacI(st, "atk", "고무고무 개틀링", { m: 1.2, hits: 3 })],
+        [noHeavy ? 0 : 3, tacI(st, "heavy", "고무고무 킹콩 건", { m: 2.1 })],
+        [last === "special" ? 0 : 2, tacI(st, "special", "기어 — 몸을 부풀린다", { b: 0.8, eff: { str: 1.15 } })],
+      ]);
+    return tacWeighted(rng, [
+      [3, tacI(st, "special", "니카 — 자유로운 장난", { m: 1.4, hits: 4, eff: { weak: 1 } })],
+      [noHeavy ? 0 : 3, tacI(st, "heavy", "고무고무 비천 — 뇌신", { m: 2.4 })],
+      [2, tacI(st, "atk", "고무고무 피스톨", { m: 1 })],
+    ]);
+  }
+  if (k === "imu") {
+    if (ph === 0)
+      return tacWeighted(rng, [
+        [3, tacI(st, "atk", "흑전의 창", { m: 1 })],
+        [last === "block" ? 0 : 2, tacI(st, "block", "신의 기사단의 방벽", { b: 1.3 })],
+        [2, tacI(st, "special", "그림자 잠식", { m: 0.6, eff: { weak: 1 } })],
+      ]);
+    if (ph === 1)
+      return tacWeighted(rng, [
+        [3, tacI(st, "atk", "검은 불꽃", { m: 0.8, eff: { burn: [0.25, 2] } })],
+        [noHeavy ? 0 : 3, tacI(st, "heavy", "변신한 이무의 강타", { m: 2.1 })],
+        [last === "buff" ? 0 : 2, tacI(st, "buff", "신의 기사단 소환", { b: 1, eff: { str: 1.1 } })],
+      ]);
+    // 3단계: 힘을 모은 뒤 대재앙을 내린다 (모으는 턴이 예고되므로 대비할 수 있다)
+    if (st.flags.charged) {
+      st.flags.charged = false;
+      return tacI(st, "heavy", "대재앙", { m: 2.8, note: "방어·회피·반격으로 대비하세요" });
+    }
+    if (last !== "heavy" && last !== "buff" && rng() < 0.5) {
+      st.flags.charged = true;
+      return tacI(st, "buff", "만물을 굴복시키는 힘을 모은다", { b: 0.6, note: "다음 턴 '대재앙' 예고" });
+    }
+    return tacI(st, "atk", "세계의 지배", { m: 1.1, eff: { drain: 0.5 } });
+  }
+  if (k === "admiral") {
+    const f = String(st.foe);
+    const sp = /아카이누/.test(f)
+      ? tacI(st, "special", "명구 — 마그마 주먹", { m: 1, eff: { burn: [0.3, 3] } })
+      : /아오키지/.test(f)
+        ? tacI(st, "special", "아이스 타임", { m: 0.6, eff: { weak: 2 } })
+        : /키자루/.test(f)
+          ? tacI(st, "special", "빛의 연탄", { m: 1.5, hits: 4 })
+          : /후지토라/.test(f)
+            ? tacI(st, "special", "중력도", { m: 0.8, eff: { weak: 1 } })
+            : /료쿠규/.test(f)
+              ? tacI(st, "special", "숲의 흡수", { m: 0.9, eff: { drain: 0.6 } })
+              : /가프/.test(f)
+                ? tacI(st, "special", "주먹 뼈 충돌", { m: 1.5 })
+                : tacI(st, "special", "대장의 충격파", { m: 1.3 });
+    return tacWeighted(rng, [
+      [3, tacI(st, "atk", "해군 체술", { m: 1 })],
+      [noHeavy ? 0 : 2, tacI(st, "heavy", "전력의 일격", { m: 2 })],
+      [last === "special" ? 0 : 3, sp],
+      [1, tacI(st, "block", "무장색 방어", { b: 1.2 })],
+    ]);
+  }
+  if (k === "warlord") {
+    const f = String(st.foe);
+    const sp = /미호크|세계 최강의 검사/.test(f)
+      ? tacI(st, "heavy", "흑도 요루의 참격", { m: 2.3 })
+      : /크로커다일/.test(f)
+        ? tacI(st, "special", "사블레스", { m: 0.9, eff: { drain: 0.5 } })
+        : /도플라밍고/.test(f)
+          ? tacI(st, "buff", "새장 — 조여드는 실", { m: 0.5, eff: { str: 1.15 } })
+          : /쿠마/.test(f)
+            ? tacI(st, "heavy", "우르수스 쇼크", { m: 2.2 })
+            : /핸콕/.test(f)
+              ? tacI(st, "special", "메로메로 멜로우", { m: 0.5, eff: { weak: 2 } })
+              : /모리아/.test(f)
+                ? tacI(st, "special", "그림자 빼앗기", { m: 0.8, eff: { drain: 0.5 } })
+                : /트라팔가/.test(f)
+                  ? tacI(st, "special", "룸 — 감마 나이프", { m: 1.6 })
+                  : tacI(st, "special", "칠무해의 비기", { m: 1.4 });
+    return tacWeighted(rng, [
+      [3, tacI(st, "atk", "공격", { m: 1 })],
+      [last === sp.kind ? 1 : 3, sp],
+      [2, tacI(st, "block", "방어 태세", { b: 1.1 })],
+    ]);
+  }
+  // 일반 적은 공격·강공·방어만 쓰는 단순한 패턴, 이름 없는 강적은 기세 올리기까지 쓴다
+  const strong = st.tier !== "normal";
+  return tacWeighted(rng, [
+    [5, tacI(st, "atk", "공격", { m: 1 })],
+    [noHeavy ? 0 : strong ? 2.5 : 1.5, tacI(st, "heavy", "강력한 공격", { m: 1.8 })],
+    [last === "block" ? 0 : 2, tacI(st, "block", "방어", { b: 1, m: strong ? 0.5 : 0 })],
+    [strong ? 1 : 0, tacI(st, "buff", "기세를 끌어올린다", { eff: { str: 1.15 } })],
+  ]);
+}
+// 단계가 바뀔 때 보스의 전투 방식이 바뀐다
+function tacPhaseFx(st) {
+  const k = st.kind;
+  if (k === "kaido") st.eStr = Math.min(1.9, st.eStr * 1.3);
+  else if (k === "shanks" || k === "whitebeard" || k === "luffy" || k === "teach")
+    st.eStr = Math.min(1.9, st.eStr * 1.2);
+  st.step = 0;
+}
+
+// ── S등급 열매 고유 전투 방식 (기존 기술 이름·유형 위에 얹는다) ──
+const TAC_FRUIT_SX = {
+  "고무고무 열매": ["grow", "쓸수록 연타 수가 늘어난다(최대 6연타) · 고무 몸: 일반 공격 피해 -15%"],
+  "어둠어둠 열매": ["void", "방어 무시 · 적의 공격력 강화를 빨아들인다"],
+  "용용 열매 모델 니드호그": ["rage", "잃은 체력이 많을수록 피해 증가(최대 ×2.2)"],
+  "흔들흔들 열매": ["quake", "적의 방어를 부수고 그 2배만큼 추가 피해"],
+  "마그마그마 열매": ["magma", "이미 걸린 지속 피해를 2턴 늘린다"],
+  "번쩍번쩍 열매": ["light", "빛의 속도: 치명타 확률 40%"],
+  "얼음얼음 열매": ["ice", "동결: 일반 적은 이번 턴 행동 불가, 강자는 위력 -60%"],
+  "물고기물고기 열매 모델 청룡": ["dragon", "열식은 방어를 무시한다"],
+  "힘힘 열매": ["might", "방어 무시 · 방어 중인 적에게 피해 ×1.6"],
+};
+
+// ── 플레이어 행동 정의 (전투 시작 때 한 번만 만든다) ──
+function tacBuildActions(st) {
+  const ab = st.ab,
+    out = [];
+  const armF = ab.arm / 100,
+    obsF = ab.obs / 100,
+    kingF = ab.king / 100;
+  out.push({ id: "strong", group: "basic", icon: "⚔️", name: "강력한 공격", dmg: 1.45 + (ab.arm ? 0.15 + armF * 0.1 : 0), exposed: 0.25, desc: `큰 피해${ab.arm ? " (무장색 강화)" : ""} · 이번 턴 받는 피해 +25%` });
+  const gp = Math.min(TAC_TUNE.guardCap, 0.5 + Math.min(0.1, ab.combat / 1000) + (ab.arm ? 0.15 + armF * 0.05 : 0));
+  out.push({ id: "guard", group: "basic", icon: "🛡️", name: "방어 태세", dmg: 0.25 + (ab.arm ? 0.25 : 0), block: gp, desc: `이번 턴 받는 피해 -${Math.round(gp * 100)}% · 가벼운 반격${ab.arm ? " (무장색 강화)" : ""}` });
+  const cc = Math.min(0.7, 0.3 + (ab.obs ? 0.15 + obsF * 0.1 : 0));
+  out.push({ id: "gap", group: "basic", icon: "🎯", name: "빈틈 노리기", dmg: 1, crit: cc, desc: `${Math.round(cc * 100)}% 확률로 치명타(피해 2배)${ab.obs ? " (견문색 강화)" : ""}` });
+  const hakiMax = Math.max(ab.arm, ab.obs, ab.king);
+  const fm = hakiMax ? 2 + (hakiMax / 100) * 0.3 : 1.7;
+  out.push({ id: "focus", group: "basic", icon: "🌀", name: "패기 집중", dmg: 0.25, focus: fm, desc: `다음 공격 피해 ×${fm.toFixed(1)}${hakiMax ? "" : " (패기가 있으면 더 강해짐)"}` });
+  // 전략 행동 (강적·보스 전투에서만): 반격 = 적의 공격을 읽을 때, 차지 = 한 턴 뒤 큰 한 방, 연계 = 공격을 이어 갈 때
+  if (st.tier !== "normal") {
+    out.push({ id: "counter", group: "tactic", icon: "↩️", name: "반격", dmg: 0, block: 0.3, counter: 1.3, cd: 2, desc: "받는 피해 -30% · 적이 공격하면 맞받아친다(공격하지 않으면 헛손질) · 재사용 2턴" });
+    out.push({ id: "charge", group: "tactic", icon: "⏳", name: "차지 공격", dmg: 0, chargeUp: 3, cd: 4, desc: "힘을 모아 다음 턴이 끝날 때 방어를 무시하는 큰 피해 · 그사이 자유롭게 행동 · 재사용 4턴" });
+    out.push({ id: "chain", group: "tactic", icon: "🔗", name: "연계 공격", dmg: 0.9, hits: 2, chainMult: 1.7, desc: "2연타 · 직전 턴에 공격으로 피해를 줬다면 피해 ×1.7" });
+  }
+  if (ab.arm) out.push({ id: "arm", group: "haki", icon: "⬛", name: "무장 경화 강타", dmg: 1.6 + armF * 0.3, pierce: true, cd: 3, desc: "방어를 무시하는 강타 · 재사용 3턴" });
+  if (ab.obs) out.push({ id: "obs", group: "haki", icon: "👁️", name: "견문색 — 미래 예측", dmg: 0.4, evade: true, cd: 5, desc: "이번 턴 적의 공격을 모두 피함 · 재사용 5턴" });
+  if (ab.king)
+    out.push({ id: "king", group: "haki", icon: "👑", name: "패왕색 위압", dmg: 0.4 + kingF * 0.3, intimidate: true, cd: 4, desc: st.boss || st.tier === "strong" ? "적의 이번 행동 위력 -50% (강자는 버틴다) · 재사용 4턴" : "적이 위압당해 이번 턴 행동 불가 · 재사용 4턴" });
+  if (ab.sword) {
+    const sf = Math.min(1.5, ab.sword / 100);
+    out.push({ id: "slash", group: "sword", icon: "🗡️", name: ab.swordName ? `${ab.swordName} — 비참격` : "검술 — 비참격", dmg: 1.25 + sf * 0.35, pierce: true, slash: true, cd: 2, desc: "방어를 무시하는 참격 · 재사용 2턴" });
+    if (ab.sword >= 50) out.push({ id: "sword2", group: "sword", icon: "⚡", name: "검술 오의 — 연속 베기", dmg: 1.9 + sf * 0.3, hits: 3, slash: true, cd: 4, desc: "3연타 강력한 검술 · 재사용 4턴" });
+  }
+  if (ab.rokushiki) {
+    out.push({ id: "shigan", group: "rokushiki", icon: "👉", name: "지건", dmg: 1.35, pierce: true, cd: 2, desc: "방어를 꿰뚫는 손가락 총 · 재사용 2턴" });
+    out.push({ id: "tekkai", group: "rokushiki", icon: "🪨", name: "철괴", dmg: 0, block: 0.75, cd: 3, desc: "몸을 강철처럼 굳혀 받는 피해 -75% · 재사용 3턴" });
+    out.push({ id: "geppo", group: "rokushiki", icon: "🌙", name: "월보", dmg: 0.5, block: 0.4, critNext: true, cd: 3, desc: "공중 기동: 받는 피해 -40% · 다음 공격 치명타 확정 · 재사용 3턴" });
+  }
+  ab.fruits.forEach((f, i) => {
+    const [nm, type] = tacFruitDef(f);
+    const g = { S: 1.25, A: 1.12, B: 1, C: 0.9 }[fruitGrade(f)] || 1;
+    const pw = g * (1 + Math.min(40, ab.mastery) / 160) * (ab.awakened && i === 0 ? 1.2 : 1);
+    const a = { id: "fruit" + i, group: "fruit", icon: "🍇", name: nm, fruit: f };
+    if (type === "blast") Object.assign(a, { dmg: 1.9 * pw, cd: 3, desc: "열매의 힘을 모은 큰 피해 · 재사용 3턴" });
+    else if (type === "pierce") Object.assign(a, { dmg: 1.5 * pw, pierce: true, cd: 2, desc: "방어를 무시하는 기술 · 재사용 2턴" });
+    else if (type === "multi") Object.assign(a, { dmg: 2.1 * pw, hits: 3, cd: 3, desc: "3연타 · 재사용 3턴" });
+    else if (type === "burn") Object.assign(a, { dmg: 1 * pw, burn: [0.35 * pw, 3], cd: 3, desc: "피해 + 3턴 동안 지속 피해 · 재사용 3턴" });
+    else if (type === "guard") Object.assign(a, { dmg: 0.6 * pw, block: 0.7, cd: 3, desc: "받는 피해 -70% + 반격 · 재사용 3턴" });
+    else if (type === "evade") Object.assign(a, { dmg: 0.8 * pw, evade: true, cd: 4, desc: "이번 턴 공격을 피하며 반격 · 재사용 4턴" });
+    else if (type === "heal") Object.assign(a, { dmg: 0.5 * pw, heal: 0.2 * pw, cd: 4, desc: `체력 ${Math.round(20 * pw)}% 회복 + 공격 · 재사용 4턴` });
+    else if (type === "stun") Object.assign(a, { dmg: 0.8 * pw, weakenFoe: 0.5, cd: 4, desc: "적의 이번 행동 위력 -50% · 재사용 4턴" });
+    else if (type === "drain") Object.assign(a, { dmg: 1.3 * pw, drain: 0.5, cd: 3, desc: "준 피해의 절반만큼 체력 회복 · 재사용 3턴" });
+    else Object.assign(a, { dmg: 0.6 * pw, buffNext: [1.4, 2], cd: 5, desc: "변신: 다음 2번의 공격 피해 ×1.4 · 재사용 5턴" });
+    // S등급: 열매마다 다른 고유 전투 방식
+    const sx = TAC_FRUIT_SX[f];
+    if (sx) {
+      a.sx = sx[0];
+      a.desc += " · " + sx[1];
+      if (a.sx === "grow") a.perHit = 0.7 * pw;
+      if (a.sx === "void" || a.sx === "might" || a.sx === "dragon" || a.sx === "quake") a.pierce = true;
+      if (a.sx === "light") a.crit = 0.4;
+      if (a.sx === "ice") {
+        a.weakenFoe = 0;
+        a.freeze = true;
+      }
+    }
+    if (ab.awakened && i === 0) a.desc += " · 각성";
+    out.push(a);
+  });
+  for (const a of out) {
+    a.hits = a.hits || 1;
+    a.cd = a.cd || 0;
+  }
+  return out;
+}
+function tacActionList(st) {
+  const out = st.acts || (st.acts = tacBuildActions(st));
+  for (const a of out) {
+    a.left = st.cd[a.id] || 0;
+    a.sealed = st.sealed > 0 && (a.group === "fruit" || a.group === "haki");
+    a.ok = !st.over && a.left <= 0 && !a.sealed;
+  }
+  return out;
+}
+
+// ── 피해 계산 (예고 표시와 실제 실행이 같은 함수를 쓴다) ──
+function tacOutMult(st, a) {
+  let m = 1;
+  if (a.dmg >= 0.6) {
+    if (st.focus) m *= st.focus;
+    if (st.buff && st.buff.n > 0) m *= st.buff.m;
+  }
+  if (st.pWeak > 0) m *= 0.7;
+  if (a.chainMult && st.chain) m *= a.chainMult;
+  if (a.sx === "rage") m *= 1 + 1.2 * (1 - Math.max(0, st.php) / st.pmax);
+  if (a.sx === "might" && st.eblock > 0) m *= 1.6;
+  return m;
+}
+// 보스의 고유 내성: 카이도는 방어 무시 공격, 루피는 베기·방어 무시 공격에 약하다
+function tacFoeTakeMult(st, a) {
+  if (st.kind === "kaido" && !a.pierce) return 0.75;
+  if (st.kind === "luffy" && !a.pierce && !a.slash) return 0.7;
+  return 1;
+}
+function tacHitCount(st, a) {
+  return a.sx === "grow" ? Math.min(6, 3 + (st.uses[a.id] || 0)) : a.hits;
+}
+function tacHitList(st, a, crit) {
+  if (!(a.dmg > 0)) return [];
+  const n = tacHitCount(st, a),
+    total = a.sx === "grow" ? st.A0 * a.perHit * n : st.A0 * a.dmg;
+  const per = (total * tacOutMult(st, a) * tacFoeTakeMult(st, a) * (crit ? 2 : 1)) / n;
+  const hits = Array.from({ length: n }, () => Math.max(1, Math.round(per)));
+  if (a.sx === "quake" && st.eblock > 0) hits[0] += st.eblock * 2;
+  return hits;
+}
+function tacAfterBlock(st, hits, pierce) {
+  let blk = pierce ? 0 : st.eblock,
+    total = 0;
+  for (const h of hits) {
+    const t = Math.min(blk, h);
+    blk -= t;
+    total += h - t;
+  }
+  return total;
+}
+function tacCritChance(st, a) {
+  if (st.critNext && a.dmg >= 0.6) return 1;
+  return a.crit || 0;
+}
+// 이번 턴 적 행동의 실제 피해. mods는 플레이어 행동이 정하는 방어 상태
+function tacIncoming(st, mods) {
+  const it = st.intent;
+  if (!it || st.over || mods.stun) return 0;
+  let tot = 0;
+  if (it.hits && !mods.evade) {
+    const w = 1 - (mods.eWeak || 0),
+      blk = (mods.block || 0) * (it.eff && it.eff.halfBlock ? 0.5 : 1);
+    for (let i = 0; i < it.hits; i++) {
+      let d = it.dmg * st.eStr * w;
+      d *= 1 + (mods.exposed || 0);
+      d *= 1 - blk;
+      if (st.ab.logia && !st.boss) d *= 0.85;
+      if (st.ab.rubber && it.kind === "atk") d *= 0.85;
+      tot += Math.max(0, Math.round(d));
+    }
+  }
+  return tot + (mods.parry || 0);
+}
+function tacModsIf(st, a) {
+  const m = { block: 0, evade: false, exposed: 0, stun: st.eStun, eWeak: st.eWeak, parry: 0, counter: 0 };
+  if (a) {
+    m.block = a.block || 0;
+    m.evade = !!a.evade;
+    m.exposed = a.exposed || 0;
+    m.counter = a.counter || 0;
+    const tough = st.boss || st.tier === "strong";
+    if (a.intimidate) {
+      if (tough) m.eWeak = Math.max(m.eWeak, 0.5);
+      else m.stun = true;
+    }
+    if (a.freeze) {
+      if (tough) m.eWeak = Math.max(m.eWeak, 0.6);
+      else m.stun = true;
+    }
+    if (a.weakenFoe) m.eWeak = Math.max(m.eWeak, a.weakenFoe);
+    // 샹크스의 간파: 큰 공격을 하면 반격을 받는다
+    const it = st.intent;
+    if (it && it.eff && it.eff.parry && !m.stun && a.dmg >= 1.4)
+      m.parry = Math.round(st.E * it.eff.parry * st.eStr * (1 - m.eWeak));
+  }
+  return m;
+}
+// 반격 피해: 적이 실제로 공격할 때만 (적이 이번 행동으로 얻는 방어에 먼저 막힌다)
+function tacCounterRaw(st, mods) {
+  const it = st.intent;
+  if (!mods.counter || !it || !it.hits || mods.stun) return 0;
+  return Math.round(st.A0 * mods.counter * (st.pWeak > 0 ? 0.7 : 1) * tacFoeTakeMult(st, {}));
+}
+function tacCounterDmg(st, mods) {
+  return Math.max(0, tacCounterRaw(st, mods) - ((st.intent && st.intent.block) || 0));
+}
+// 이번 라운드 끝에 받을 지속 피해 (이미 걸린 것 + 이번 적 행동으로 새로 걸릴 것)
+function tacBurnTick(st, mods) {
+  let d = st.pBurn.reduce((x, b) => x + b.d, 0);
+  const e = (st.intent && st.intent.eff) || {};
+  if (e.burn && !mods.evade && !mods.stun && !st.over) d += Math.max(1, Math.round(st.E * e.burn[0]));
+  return d;
+}
+function tacPreview(st, a) {
+  const c = tacCritChance(st, a);
+  const n = tacAfterBlock(st, tacHitList(st, a, false), a.pierce),
+    k = tacAfterBlock(st, tacHitList(st, a, true), a.pierce);
+  const mods = tacModsIf(st, a);
+  const inc = tacIncoming(st, mods) + tacBurnTick(st, mods);
+  const ctr = tacCounterDmg(st, mods);
+  return { dmg: c >= 1 ? k : n, crit: c > 0 && c < 1 ? k : null, c, exp: n * (1 - c) + k * c + ctr, inc, ctr, charge: a.chargeUp ? Math.round(st.A0 * a.chargeUp) : 0, parry: mods.parry };
+}
+
+// ── 전투 상태 ──
+function tacNewState(info, ab, k, rng, sim) {
+  const fp = foePower(info.base);
+  const kind = tacBossKind(info.foe);
+  const tier = tacTier(kind, fp);
+  const pmax = Math.round(80 + Math.min(100, ab.health) * 0.6);
+  // 일반 전투는 3~4턴, 강적은 6턴, 보스는 7턴 안팎 (공격력은 보정으로 정해진다)
+  const len = tier === "normal" ? TAC_TUNE.lenN : tier === "strong" ? TAC_TUNE.lenS : TAC_TUNE.lenB;
+  const total = Math.round(tier === "normal" ? 80 + Math.max(0, fp) * 0.6 : (tier === "boss" ? 150 : 110) + Math.max(0, fp) * 1.1);
+  const names = TAC_PHASES[kind];
+  const split = names ? (names.length === 3 ? [0.35, 0.35, 0.3] : [0.55, 0.45]) : [1];
+  const phases = split.map((f, i) => ({ name: names ? names[i] : "", hp: Math.max(1, Math.round(total * f)) }));
+  const st = {
+    sim: !!sim,
+    foe: info.foe,
+    base: info.base,
+    ch: info.ch,
+    fp,
+    kind,
+    tier,
+    boss: tier === "boss",
+    ab,
+    k,
+    A0: Math.max(1, (k * total) / len),
+    E: pmax / (tier === "normal" ? TAC_TUNE.eNormal : TAC_TUNE.eStrong),
+    pmax,
+    php: pmax,
+    phases,
+    phase: 0,
+    emax: phases[0].hp,
+    ehp: phases[0].hp,
+    eblock: 0,
+    eStr: 1,
+    eStun: false,
+    eWeak: 0,
+    eBurn: [],
+    pBurn: [],
+    pWeak: 0,
+    sealed: 0,
+    focus: 0,
+    buff: null,
+    critNext: false,
+    chain: false,
+    charge: null,
+    uses: {},
+    cd: {},
+    turn: 1,
+    step: 0,
+    flags: {},
+    lastIntentKind: null,
+    intent: null,
+    over: false,
+    won: null,
+    log: [],
+    fx: [],
+  };
+  st.intent = tacNextIntent(st, rng);
+  st.lastIntentKind = st.intent.kind;
+  return st;
+}
+function tacLog(st, s) {
+  if (!st.sim) st.log.push(s);
+}
+function tacDamageFoe(st, amt, pierce) {
+  if (amt <= 0) return 0;
+  let a = amt;
+  if (!pierce && st.eblock > 0) {
+    const t = Math.min(st.eblock, a);
+    st.eblock -= t;
+    a -= t;
+  }
+  st.ehp -= a;
+  return a;
+}
+function tacCheckFoe(st) {
+  if (st.ehp > 0) return false;
+  if (st.phase < st.phases.length - 1) {
+    st.phase++;
+    st.emax = st.ehp = st.phases[st.phase].hp;
+    st.eblock = 0;
+    st.flags.charged = false;
+    st.phaseShift = true;
+    tacPhaseFx(st);
+    tacLog(st, `⚠️ ${st.phases[st.phase].name} — 적이 모습을 바꿉니다!`);
+    st.fx.push("phase");
+    return false;
+  }
+  st.ehp = 0;
+  st.over = true;
+  st.won = true;
+  return true;
+}
+// 플레이어 한 번의 행동. 성공하면 true
+function tacPlayerAct(st, id, rng) {
+  if (st.over || st.acted) return false;
+  const a = tacActionList(st).find((x) => x.id === id);
+  if (!a || !a.ok) return false;
+  st.acted = true; // 한 턴에 한 번만 행동한다
+  st.phaseShift = false;
+  st.mods = tacModsIf(st, a);
+  if (a.intimidate || a.freeze) {
+    if (st.mods.stun) st.eStun = true;
+    else st.eWeak = Math.max(st.eWeak, st.mods.eWeak);
+    st.fx.push(a.freeze ? "guard" : "king");
+  }
+  if (a.weakenFoe) st.eWeak = Math.max(st.eWeak, a.weakenFoe);
+  const crit = rng() < tacCritChance(st, a);
+  const hits = tacHitList(st, a, crit);
+  let attacked = false;
+  if (hits.length) {
+    let dealt = 0;
+    for (const h of hits) dealt += tacDamageFoe(st, h, a.pierce);
+    if (a.sx === "quake") st.eblock = 0;
+    if (a.dmg >= 0.6) {
+      st.focus = 0;
+      if (st.buff && st.buff.n > 0) st.buff.n--;
+      attacked = dealt > 0;
+    }
+    if (crit || a.dmg >= 0.6) st.critNext = false;
+    tacLog(st, `${a.icon} ${a.name} — ${dealt} 피해${crit ? " (치명타!)" : ""}${a.chainMult && st.chain ? " (연계!)" : ""}`);
+    st.fx.push(crit ? "crit" : a.id === "strong" || a.pierce ? "slash" : "hit");
+    st.lastDealt = dealt;
+    if (a.drain && dealt > 0) {
+      const h = Math.round(dealt * a.drain);
+      st.php = Math.min(st.pmax, st.php + h);
+      tacLog(st, `💚 체력 ${h} 흡수`);
+    }
+  } else tacLog(st, `${a.icon} ${a.name}`);
+  st.chain = attacked;
+  if (a.sx) st.uses[a.id] = (st.uses[a.id] || 0) + 1;
+  if (a.sx === "void" && st.eStr > 1) {
+    st.eStr = Math.max(1, st.eStr - 0.15);
+    tacLog(st, "🌑 적의 강화된 힘을 빨아들였습니다");
+  }
+  if (a.sx === "magma") for (const b of st.eBurn) b.t += 2;
+  if (a.burn) st.eBurn.push({ d: Math.max(1, Math.round(st.A0 * a.burn[0])), t: a.burn[1] });
+  if (a.heal) {
+    const h = Math.round(st.pmax * a.heal);
+    st.php = Math.min(st.pmax, st.php + h);
+    tacLog(st, `💚 체력 ${h} 회복`);
+  }
+  if (a.focus) {
+    st.focus = a.focus;
+    st.fx.push("haki");
+  }
+  if (a.chargeUp) {
+    st.charge = { d: Math.round(st.A0 * a.chargeUp), t: 2 };
+    st.fx.push("haki");
+  }
+  if (a.buffNext) st.buff = { m: a.buffNext[0], n: a.buffNext[1] };
+  if (a.critNext) st.critNext = true;
+  if (a.block) st.fx.push("guard");
+  if (a.cd) st.cd[a.id] = a.cd + 1; // 라운드 끝에 1 줄어 a.cd 턴 동안 잠긴다
+  tacCheckFoe(st);
+  return true;
+}
+// 적의 차례와 라운드 정리
+function tacEnemyAct(st, rng) {
+  if (st.over) return;
+  const mods = st.mods || tacModsIf(st, null);
+  const ctrRaw = st.phaseShift ? 0 : tacCounterRaw(st, mods); // 약화가 풀리기 전에 계산 (예고와 같게)
+  if (st.pWeak > 0) st.pWeak--;
+  if (st.sealed > 0) st.sealed--;
+  st.eblock = 0; // 적의 방어는 자기 차례가 오면 사라진다
+  const it = st.intent;
+  st.lastHit = 0;
+  if (st.phaseShift) {
+    tacLog(st, "적이 단계를 바꾸느라 이번 턴에는 행동하지 않았습니다.");
+  } else if (mods.stun) {
+    tacLog(st, `👑 ${st.foe}${ga(st.foe)} 움직이지 못했습니다!`);
+  } else {
+    const dmg = tacIncoming(st, mods);
+    st.lastHit = dmg;
+    if (it.hits || mods.parry) {
+      st.php -= dmg;
+      tacLog(st, `${it.icon} 적의 ${it.name} — ${mods.evade && !mods.parry ? "회피!" : dmg + " 피해"}${mods.parry ? " (간파당해 반격받음)" : ""}`);
+      st.fx.push(mods.evade && !mods.parry ? "evade" : "hurt");
+    } else tacLog(st, `${it.icon} 적의 ${it.name}`);
+    if (it.block) st.eblock += it.block;
+    const e = it.eff || {};
+    if (e.str) st.eStr = Math.min(1.9, st.eStr * e.str);
+    if (e.weak && !mods.evade) st.pWeak = Math.max(st.pWeak, e.weak);
+    if (e.seal) st.sealed = Math.max(st.sealed, e.seal);
+    if (e.strip && (st.focus || st.charge || (st.buff && st.buff.n > 0))) {
+      st.focus = 0;
+      st.charge = null;
+      st.buff = null;
+      tacLog(st, "🌑 블랙 홀이 모아 둔 힘을 빨아들였습니다");
+    }
+    if (e.burn && !mods.evade) st.pBurn.push({ d: Math.max(1, Math.round(st.E * e.burn[0])), t: e.burn[1] });
+    if (e.drain && dmg > 0) st.ehp = Math.min(st.emax, st.ehp + Math.round(dmg * e.drain));
+    if (mods.counter && it.hits) {
+      const ctr = tacDamageFoe(st, ctrRaw, false);
+      tacLog(st, `↩️ 반격 — ${ctr} 피해`);
+      st.lastDealt = ctr;
+      st.fx.push("slash");
+    }
+  }
+  if (mods.counter && !(it.hits && !mods.stun && !st.phaseShift)) tacLog(st, "↩️ 적이 공격하지 않아 반격이 헛돌았습니다");
+  // 라운드 정리: 지속 피해, 차지 발동, 재생, 재사용 대기
+  let pb = 0,
+    eb = 0;
+  st.pBurn = st.pBurn.filter((b) => ((pb += b.d), --b.t > 0));
+  st.eBurn = st.eBurn.filter((b) => ((eb += b.d), --b.t > 0));
+  if (pb) {
+    st.php -= pb;
+    tacLog(st, `🔥 지속 피해 ${pb}`);
+  }
+  if (eb) {
+    st.ehp -= eb;
+    tacLog(st, `🔥 적 지속 피해 ${eb}`);
+  }
+  if (st.charge && --st.charge.t <= 0) {
+    const d = st.charge.d;
+    st.charge = null;
+    st.ehp -= d;
+    st.lastDealt = d;
+    tacLog(st, `⏳ 차지 공격 발동 — ${d} 피해`);
+    st.fx.push("crit");
+  }
+  // 이무 1단계: 지속 피해가 걸려 있지 않으면 재생한다
+  if (st.kind === "imu" && st.phase === 0 && !st.eBurn.length && eb === 0 && st.ehp > 0) {
+    const r = Math.round(st.emax * 0.06);
+    st.ehp = Math.min(st.emax, st.ehp + r);
+    tacLog(st, `♻️ 이무가 ${r} 재생했습니다 (지속 피해로 막을 수 있다)`);
+  }
+  st.eStun = false;
+  st.eWeak = 0;
+  st.mods = null;
+  st.phaseShift = false;
+  for (const k of Object.keys(st.cd)) if (st.cd[k] > 0) st.cd[k]--;
+  if (st.php <= 0) {
+    st.php = 0;
+    st.over = true;
+    st.won = false;
+    return;
+  }
+  if (tacCheckFoe(st)) return;
+  st.phaseShift = false;
+  st.turn++;
+  st.acted = false;
+  st.intent = tacNextIntent(st, rng);
+  st.lastIntentKind = st.intent.kind;
+  if (st.turn > 40) {
+    st.over = true;
+    st.won = st.php / st.pmax >= st.ehp / st.emax;
+  }
+}
+
+// ── 보정용 시뮬레이션 ──
+// 신중한 플레이어(무작위 10%)와 대충 하는 플레이어(무작위 40%)의 평균 승률을 기존 승률에 맞춘다.
+// 그래서 잘 싸우면 기존 승률보다 조금 높고, 대충 해도 크게 떨어지지 않는다.
+function tacPolicy(st, rng, sloppy = 0.1) {
+  const acts = tacActionList(st).filter((a) => a.ok);
+  if (!acts.length) return null;
+  if (rng() < sloppy) return acts[Math.floor(rng() * acts.length)];
+  let best = acts[0],
+    bs = -1e9;
+  for (const a of acts) {
+    const pv = tacPreview(st, a);
+    let s = pv.exp - pv.inc * 1.1;
+    if (a.focus) s += st.A0 * 0.9;
+    if (a.buffNext) s += st.A0 * 0.6;
+    if (a.burn) s += st.A0 * a.burn[0] * 2;
+    if (a.heal) s += Math.min(st.pmax * a.heal, st.pmax - st.php) * 0.9;
+    if (a.critNext) s += st.A0 * 0.6;
+    if (a.chargeUp) s += pv.charge * 0.7;
+    if (s > bs) {
+      bs = s;
+      best = a;
+    }
+  }
+  return best;
+}
+function tacSimulate(st, rng, sloppy) {
+  let guard = 0;
+  while (!st.over && guard++ < 200) {
+    const a = tacPolicy(st, rng, sloppy);
+    if (!a || !tacPlayerAct(st, a.id, rng)) break;
+    if (!st.over) tacEnemyAct(st, rng);
+  }
+  return st.won === true;
+}
+// 같은 조건의 보정 결과는 다시 계산하지 않는다 (스마트폰 부담을 줄인다)
+const TAC_CAL_CACHE = new Map();
+// 밸런스 값: 전투가 길수록 실력 차이가 승률을 크게 벌리므로 짧고 굵게 싸운다.
+// 거의 실수 없는 플레이어(무작위 5%)와 가끔 헤매는 플레이어(무작위 30%)의 평균을 기존 승률에 맞춘다.
+const TAC_TUNE = { eNormal: 3.5, eStrong: 4.5, lenN: 3, lenS: 4.5, lenB: 5.5, guardCap: 0.7, pols: [0.05, 0.3], N: 60, iters: 10 };
+function tacCalibrate(info, ab) {
+  const key = [info.foe, info.base, info.ch.toFixed(3), ab.arm, ab.obs, ab.king, ab.sword, ab.rokushiki, ab.fruits.join("/"), ab.mastery, ab.awakened, ab.logia, Math.round(ab.health / 5), Math.round(ab.combat / 5)].join("|");
+  if (TAC_CAL_CACHE.has(key)) return TAC_CAL_CACHE.get(key);
+  const N = TAC_TUNE.N,
+    pols = TAC_TUNE.pols,
+    target = info.ch;
+  const rate = (k) => {
+    let w = 0;
+    for (let i = 0; i < N; i++) {
+      // 체력 경계에서 승률이 계단처럼 튀지 않도록 공격력에 작은 흔들림을 준다
+      const kk = k * (0.85 + 0.3 * ((i * 0.618034) % 1));
+      for (const sloppy of pols) {
+        const r = tacRng(9973 + i * 7919 + Math.round(sloppy * 10));
+        if (tacSimulate(tacNewState(info, ab, kk, r, true), r, sloppy)) w++;
+      }
+    }
+    return w / (N * pols.length);
+  };
+  let lo = Math.log(0.03),
+    hi = Math.log(25);
+  for (let it = 0; it < TAC_TUNE.iters; it++) {
+    const mid = (lo + hi) / 2;
+    if (rate(Math.exp(mid)) < target) lo = mid;
+    else hi = mid;
+  }
+  const k = Math.exp((lo + hi) / 2);
+  if (TAC_CAL_CACHE.size > 60) TAC_CAL_CACHE.clear();
+  TAC_CAL_CACHE.set(key, k);
+  return k;
+}
+
+// ── 화면 ──
+function tacEnsureUI() {
+  if (document.getElementById("tacOverlay")) return;
+  const css = document.createElement("style");
+  css.textContent = `
+.tac-ov{position:fixed;inset:0;z-index:9999;background:rgba(5,12,18,.82);display:flex;align-items:flex-start;justify-content:center;overflow-y:auto;padding:12px 10px calc(12px + env(safe-area-inset-bottom,0px))}
+.tac-ov.hidden{display:none}
+.tac-box{width:100%;max-width:640px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.5);color:var(--ink)}
+.tac-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.tac-art{position:relative;height:clamp(90px,24vw,150px);border-radius:12px;overflow:hidden;margin:6px 0 4px;background:#0b1622}
+.tac-art:empty{display:none}
+.tac-art svg{width:100%;height:100%;display:block}
+.tac-title{font-size:19px;font-weight:900;margin:4px 0 8px}
+.tac-card{position:relative;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px}
+.tac-name{display:flex;justify-content:space-between;gap:6px;font-weight:850}
+.tac-sub{font-size:12px;color:var(--muted)}
+.tac-bar{height:12px;background:#0e1b25;border-radius:7px;overflow:hidden;margin:7px 0 4px;border:1px solid #2d4657}
+.tac-bar>i{display:block;height:100%;transition:width .35s ease}
+.tac-badges{display:flex;flex-wrap:wrap;gap:5px;font-size:12px;min-height:4px}
+.tac-badges span{background:#0e1b25;border:1px solid #3b5a6d;border-radius:999px;padding:1px 8px}
+.tac-intent{margin-top:8px;background:#0e1b25;border:1px dashed var(--gold);border-radius:10px;padding:8px 10px}
+.tac-intent b{color:var(--gold)}
+.tac-acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.tac-act{min-height:64px;text-align:left;background:#223b4d;border:1px solid #47667a;border-radius:12px;color:var(--ink);padding:9px 10px;font:inherit;cursor:pointer;touch-action:manipulation}
+.tac-act b{display:block;font-size:14px}
+.tac-act small{display:block;color:#b8cbd5;font-size:11.5px;line-height:1.35;margin-top:2px}
+.tac-act .tac-pv{color:var(--gold);font-weight:800}
+.tac-act:hover:not(:disabled){border-color:var(--gold);background:#2c4d62}
+.tac-act:disabled{opacity:.42;cursor:default}
+.tac-act.g-tactic{border-color:#4f8a6a}.tac-act.g-haki{border-color:#7b6a3c}.tac-act.g-fruit{border-color:#6a4f86}.tac-act.g-sword{border-color:#4f7a86}.tac-act.g-rokushiki{border-color:#7a5a4f}
+.tac-log{margin-top:10px;font-size:13px;color:#cfe0e8;background:#0e1b25;border-radius:10px;padding:8px 10px;min-height:54px;max-height:120px;overflow-y:auto}
+.tac-log div{padding:1px 0}
+.tac-foot{display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap}
+.tac-result{text-align:center;font-size:22px;font-weight:900;margin:10px 0 4px}
+.tac-float{position:absolute;right:14px;top:6px;font-weight:900;font-size:20px;pointer-events:none;animation:tacFloat .9s ease-out forwards;text-shadow:0 2px 6px #000}
+@keyframes tacFloat{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-30px)}}
+.tac-shake{animation:tacShake .35s}
+@keyframes tacShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+.tac-flash-red{box-shadow:0 0 0 2px var(--red),0 0 18px var(--red)}
+.tac-flash-blue{box-shadow:0 0 0 2px var(--sea),0 0 18px var(--sea)}
+.tac-flash-gold{box-shadow:0 0 0 2px var(--gold),0 0 22px var(--gold)}
+.tac-flash-purple{box-shadow:0 0 0 2px #b48ae0,0 0 22px #8a5cc0}
+.tac-slash::after{content:"";position:absolute;left:-10%;top:45%;width:120%;height:3px;background:linear-gradient(90deg,transparent,#fff,transparent);transform:rotate(-12deg);animation:tacSlash .35s ease-out forwards}
+@keyframes tacSlash{from{opacity:1;clip-path:inset(0 100% 0 0)}to{opacity:0;clip-path:inset(0 0 0 0)}}
+@media (max-width:420px){.tac-box{padding:11px}.tac-act{min-height:60px;padding:8px}.tac-title{font-size:17px}}
+`;
+  document.head.appendChild(css);
+  const ov = document.createElement("div");
+  ov.id = "tacOverlay";
+  ov.className = "tac-ov hidden";
+  ov.innerHTML = `<div class="tac-box" role="dialog" aria-label="전략 전투">
+  <div class="tac-head"><span class="pill">⚔ 전략 전투</span><span class="small" id="tacOdds"></span></div>
+  <div id="tacArt" class="tac-art"></div>
+  <div class="tac-title" id="tacTitle"></div>
+  <div class="tac-card" id="tacFoe"></div>
+  <div class="tac-card" id="tacMe"></div>
+  <div class="tac-acts" id="tacActs"></div>
+  <div class="tac-log" id="tacLog"></div>
+  <div class="tac-foot"><span class="small" id="tacHint">행동을 하나 고르면 적이 예고한 행동을 합니다.</span></div>
+</div>`;
+  document.body.appendChild(ov);
+}
+function tacBar(cur, max, col) {
+  const w = Math.max(0, Math.min(100, (cur / Math.max(1, max)) * 100));
+  return `<div class="tac-bar"><i style="width:${w}%;background:${col}"></i></div>`;
+}
+function tacIntentHTML(st) {
+  const it = st.intent;
+  if (!it || st.over) return "";
+  const mods = tacModsIf(st, null);
+  const e = it.eff || {},
+    bits = [];
+  if (it.hits) {
+    const raw = tacIncoming(st, mods);
+    bits.push(mods.stun ? "위압당해 행동 불가" : `피해 <b>${raw}</b>${it.hits > 1 ? ` (${it.hits}연타)` : ""}`);
+  }
+  if (it.block) bits.push(`방어 ${it.block}`);
+  if (e.str) bits.push(`공격력 +${Math.round((e.str - 1) * 100)}%`);
+  if (e.weak) bits.push(`약화 ${e.weak}턴 (내 피해 -30%)`);
+  if (e.burn) bits.push(`지속 피해 ${Math.max(1, Math.round(st.E * e.burn[0]))}×${e.burn[1]}턴`);
+  if (e.seal) bits.push("열매·패기 기술 봉인");
+  if (e.drain) bits.push("준 피해만큼 일부 회복");
+  if (e.parry) bits.push(`큰 공격(위력 1.4배 이상) 시 반격 ${Math.round(st.E * e.parry * st.eStr * (1 - mods.eWeak))}`);
+  if (e.halfBlock) bits.push("방어 태세 효과 절반");
+  if (e.strip) bits.push("집중·변신·차지 제거");
+  if (it.note) bits.push(it.note);
+  return `<div class="tac-intent"><span class="tac-sub">다음 적 행동</span><div>${it.icon} <b>${it.name}</b> — ${bits.join(" · ") || "준비"}</div>${st.phases.length > 1 && st.phase < st.phases.length - 1 ? `<div class="tac-sub">이 단계의 체력을 0으로 만들면 적은 행동 대신 다음 단계로 넘어갑니다.</div>` : ""}</div>`;
+}
+function tacRender(st) {
+  const $$ = (id) => document.getElementById(id);
+  const title = st.boss ? `${TAC_BOSS_TITLE[st.kind] || "강적"} · ` : "";
+  $$("tacTitle").textContent = `${st.foe}${wa(st.foe)}의 전투 — ${st.turn}턴`;
+  $$("tacOdds").textContent = `${TAC_TIER_LABEL[st.tier]} · 기존 계산 승률 ${Math.round(st.ch * 100)}%`;
+  const fb = [];
+  if (st.eblock > 0) fb.push(`🛡️ 방어 ${st.eblock}`);
+  if (st.eStr > 1.001) fb.push(`🔥 공격력 +${Math.round((st.eStr - 1) * 100)}%`);
+  if (st.eBurn.length) fb.push(`🔥 지속 피해 ${st.eBurn.reduce((a, b) => a + b.d, 0)}`);
+  if (st.eStun) fb.push("👑 위압당함");
+  else if (st.eWeak > 0) fb.push(`💢 이번 행동 -${Math.round(st.eWeak * 100)}%`);
+  if (st.kind === "imu" && st.phase === 0) fb.push(st.eBurn.length ? "♻️ 재생 막힘" : "♻️ 매 턴 재생");
+  $$("tacFoe").innerHTML = `<div class="tac-name"><span>${title}${st.foe}</span><span>${Math.max(0, st.ehp)} / ${st.emax}</span></div>${st.phases.length > 1 ? `<div class="tac-sub">${st.phases[st.phase].name} (${st.phase + 1}/${st.phases.length})</div>` : ""}${TAC_TRAIT[st.kind] && st.tier === "boss" ? `<div class="tac-sub">특성 — ${TAC_TRAIT[st.kind]}</div>` : ""}${tacBar(st.ehp, st.emax, "var(--red)")}<div class="tac-badges">${fb.map((x) => `<span>${x}</span>`).join("")}</div>${tacIntentHTML(st)}`;
+  const mb = [];
+  if (st.focus) mb.push(`🌀 다음 공격 ×${st.focus.toFixed(1)}`);
+  if (st.critNext) mb.push("🌙 다음 공격 치명타");
+  if (st.charge) mb.push(`⏳ 차지 ${st.charge.d} (${st.charge.t > 1 ? "다음 턴 끝" : "이번 턴 끝"})`);
+  if (st.chain) mb.push("🔗 연계 가능");
+  if (st.ab.rubber) mb.push("고무 몸: 일반 공격 -15%");
+  if (st.buff && st.buff.n > 0) mb.push(`🍇 변신 ×${st.buff.m} (${st.buff.n}회)`);
+  if (st.pWeak > 0) mb.push(`💢 약화 ${st.pWeak}턴`);
+  if (st.sealed > 0) mb.push("🌑 열매·패기 봉인");
+  if (st.pBurn.length) mb.push(`🔥 지속 피해 ${st.pBurn.reduce((a, b) => a + b.d, 0)}`);
+  if (st.ab.logia && !st.boss) mb.push("자연계: 받는 피해 -15%");
+  $$("tacMe").innerHTML = `<div class="tac-name"><span>${p.name}</span><span>${Math.max(0, st.php)} / ${st.pmax}</span></div><div class="tac-sub">공격력 ${Math.round(st.A0)} · 전투력 ${Math.round(p.combat)} · 특수 능력치 ${specialPower()}</div>${tacBar(st.php, st.pmax, "var(--green)")}<div class="tac-badges">${mb.map((x) => `<span>${x}</span>`).join("")}</div>`;
+  const acts = tacActionList(st);
+  $$("tacActs").innerHTML = "";
+  if (st.over) {
+    $$("tacActs").innerHTML = `<div style="grid-column:1/-1"><div class="tac-result" style="color:${st.won ? "var(--gold)" : "var(--red)"}">${st.won ? "승리!" : "패배…"}</div><button class="btn" id="tacDone" style="width:100%;min-height:52px">결과 보기</button></div>`;
+  } else
+    for (const a of acts) {
+      const b = document.createElement("button");
+      b.className = "tac-act g-" + a.group;
+      b.disabled = !a.ok || st.busy;
+      const pv = tacPreview(st, a);
+      const dmgTxt = a.dmg > 0 ? `피해 ${pv.dmg}${pv.crit != null ? ` / 치명 ${pv.crit}` : ""}` : a.counter ? (pv.ctr ? `반격 ${pv.ctr}` : "반격 없음(적이 공격 안 함)") : a.chargeUp ? `차지 ${pv.charge}` : "";
+      const lockTxt = a.sealed ? "봉인됨" : a.left > 0 ? `재사용까지 ${a.left}턴` : "";
+      b.innerHTML = `<b>${a.icon} ${a.name}</b><small>${a.desc}</small><small class="tac-pv">${lockTxt || [dmgTxt, `받을 피해 ${pv.inc}${pv.parry ? " (간파 반격 포함)" : ""}`].filter(Boolean).join(" · ")}</small>`;
+      b.onclick = () => tacClick(st, a.id);
+      $$("tacActs").appendChild(b);
+    }
+  $$("tacLog").innerHTML = st.log
+    .slice(-6)
+    .map((x) => `<div>${x}</div>`)
+    .join("");
+  $$("tacLog").scrollTop = 1e6;
+}
+function tacFx(st) {
+  const foe = document.getElementById("tacFoe"),
+    me = document.getElementById("tacMe");
+  const pulse = (el, cls, ms = 450) => {
+    if (!el) return;
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), ms);
+  };
+  const float = (el, txt, col) => {
+    if (!el || !txt) return;
+    const s = document.createElement("span");
+    s.className = "tac-float";
+    s.style.color = col;
+    s.textContent = txt;
+    el.appendChild(s);
+    setTimeout(() => s.remove(), 950);
+  };
+  for (const f of st.fx) {
+    if (f === "hit" || f === "slash" || f === "crit") {
+      pulse(foe, "tac-shake");
+      pulse(foe, "tac-flash-red");
+      if (f !== "hit") pulse(foe, "tac-slash", 380);
+      float(foe, `-${st.lastDealt || 0}${f === "crit" ? "!" : ""}`, f === "crit" ? "var(--gold)" : "#fff");
+    } else if (f === "hurt") {
+      pulse(me, "tac-shake");
+      pulse(me, "tac-flash-red");
+      float(me, `-${st.lastTaken || 0}`, "var(--red)");
+    } else if (f === "guard") pulse(me, "tac-flash-blue", 700);
+    else if (f === "evade") {
+      pulse(me, "tac-flash-blue", 700);
+      float(me, "회피!", "var(--sea)");
+    } else if (f === "haki") pulse(me, "tac-flash-gold", 700);
+    else if (f === "king") pulse(foe, "tac-flash-purple", 800);
+    else if (f === "phase") pulse(foe, "tac-flash-gold", 900);
+  }
+  st.fx = [];
+}
+let tacCur = null;
+function tacClick(st, id) {
+  if (st !== tacCur || st.busy || st.over || st.acted) return;
+  st.busy = true;
+  if (!tacPlayerAct(st, id, Math.random)) {
+    st.busy = false;
+    return;
+  }
+  tacRender(st);
+  tacFx(st);
+  if (st.over) {
+    st.busy = false;
+    tacFinishUI(st);
+    return;
+  }
+  setTimeout(() => {
+    if (st !== tacCur) return;
+    const before = st.php;
+    tacEnemyAct(st, Math.random);
+    st.lastTaken = Math.max(0, before - st.php);
+    st.busy = false;
+    tacRender(st);
+    tacFx(st);
+    if (st.over) tacFinishUI(st);
+  }, 480);
+}
+function tacFinishUI(st) {
+  tacRender(st);
+  const b = document.getElementById("tacDone");
+  if (b)
+    b.onclick = () => {
+      if (st.resolved) return;
+      st.resolved = true;
+      st.done({
+        won: !!st.won,
+        foe: st.foe,
+        base: st.base,
+        note: `[전략 전투] ${st.turn}턴 만에 ${st.won ? "승리" : "패배"} · 남은 전투 체력 ${Math.max(0, st.php)}/${st.pmax}`,
+      });
+    };
+}
+function tacOpenFight(info, done) {
+  tacEnsureUI();
+  // 전투 화면에도 지금 사건과 똑같은 그림을 띄운다
+  {
+    const src = document.getElementById("sceneArt"),
+      dst = document.getElementById("tacArt");
+    dst.innerHTML = "";
+    if (src && showArt && src.style.display !== "none" && src.innerHTML.trim())
+      for (const ch of src.childNodes) dst.appendChild(ch.cloneNode(true));
+  }
+  const ab = tacAbilities();
+  const k = tacCalibrate(info, ab);
+  const st = tacNewState(info, ab, k, Math.random, false);
+  st.done = (res) => {
+    tacCur = null;
+    document.getElementById("tacOverlay").classList.add("hidden");
+    done(res);
+  };
+  tacCur = st;
+  tacLog(st, st.boss ? `⚠️ ${TAC_BOSS_TITLE[st.kind] || "강적"} ${st.foe}${ga(st.foe)} 앞을 막아섭니다!` : `${st.foe}${wa(st.foe)}의 전투가 시작됐습니다.`);
+  document.getElementById("tacOverlay").classList.remove("hidden");
+  document.getElementById("tacOverlay").scrollTop = 0;
+  tacRender(st);
+}
+{
+  const tb = document.getElementById("tacBtn");
+  if (tb) tb.textContent = tacOn ? "⚔️ 전략 전투: 켜짐" : "⚔️ 전략 전투: 꺼짐";
+}
+/* =========================================================== */
+
 </script>
   </body>
 </html>
