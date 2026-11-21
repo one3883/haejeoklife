@@ -27150,18 +27150,31 @@ function drawWanted(d){
  // DEAD OR ALIVE · 이름 · 현상금
  center("DEAD  OR  ALIVE",648,`700 {s}px ${SERIF}`,50,W-140);
  center(d.name,734,`900 {s}px ${KR}`,72,W-130);
- const amt=`฿ ${d.value.toLocaleString()}-`;
+ // 금액 줄: 조각(segs)을 이어 붙여 가운데 정렬로 그린다. 너무 길면 fixed가 아닌 조각을 함께 줄인다.
+ // '฿'(태국 문자)은 글꼴에 없어서 휴대폰마다 다른 글꼴로 대신 그려지고 폭 계산이 어긋나 줄이 밀린다.
+ // 그래서 '฿'은 어느 글꼴에나 있는 B에 세로줄을 그어 직접 그린다.
+ const AMT='"Times New Roman",serif';
+ const amountLine=(y,maxW,segs)=>{
+  let k=1,parts,tot;
+  const lay=()=>{let w=0;parts=segs.map(sg=>{const f=sg.fixed?1:k,s=Math.round(sg.size*f);g.font=`${sg.weight} ${s}px ${sg.baht?AMT:sg.family}`;
+   const tw=g.measureText(sg.baht?"B":sg.t).width,gap=(sg.gap||0)*f;w+=tw+gap;return {...sg,s,w:tw,gap}});return w};
+  tot=lay();while(tot>maxW&&k>0.3){k-=0.03;tot=lay()}
+  let x=W/2-tot/2;g.textAlign="left";g.textBaseline="alphabetic";
+  for(const r of parts){const col=r.color||INK,yy=y+(r.dy||0);g.fillStyle=col;g.font=`${r.weight} ${r.s}px ${r.baht?AMT:r.family}`;
+   if(r.baht){g.fillText("B",x,yy);g.strokeStyle=col;g.lineWidth=Math.max(2,r.s*.07);const lx=x+r.w*.46;g.beginPath();g.moveTo(lx,yy-r.s*.84);g.lineTo(lx,yy+r.s*.14);g.stroke()}
+   else g.fillText(r.t,x,yy);
+   x+=r.w+r.gap}
+ };
+ const num=`${d.value.toLocaleString()}-`;
  if(d.real){
-  center(amt,830,`900 {s}px "Times New Roman",serif`,74,W-120);
+  amountLine(830,W-120,[{baht:true,weight:900,size:74,gap:18},{t:num,weight:900,size:74,family:AMT}]);
   center("현 상 금",866,`700 {s}px ${KR}`,22,W-160,"#6b4a26");
  }else{ // 재산은 금액 바로 옆에 '재산'이라고 적는다
-  g.font=`900 36px ${KR}`;const lw=g.measureText("재산").width,gap=18;
-  const s=fit(amt,`900 {s}px "Times New Roman",serif`,74,W-120-lw-gap);const aw=g.measureText(amt).width;
-  const x0=W/2-(lw+gap+aw)/2;g.textAlign="left";g.textBaseline="alphabetic";
-  g.fillStyle="#6b4a26";g.font=`900 36px ${KR}`;g.fillText("재산",x0,830-Math.round(s*.08));
-  g.fillStyle=INK;g.font=`900 ${s}px "Times New Roman",serif`;g.fillText(amt,x0+lw+gap,830);
+  amountLine(830,W-120,[{t:"재산",weight:900,size:36,family:KR,color:"#6b4a26",gap:18,fixed:true,dy:-6},
+   {baht:true,weight:900,size:74,gap:18},{t:num,weight:900,size:74,family:AMT}]);
  }
- if(both)center(`재산  ฿ ${d.wealth.toLocaleString()}`,906,`800 {s}px ${KR}`,30,W-160,"#4e3218");
+ if(both)amountLine(906,W-160,[{t:"재산",weight:800,size:30,family:KR,color:"#4e3218",gap:16},
+  {baht:true,weight:800,size:30,gap:8,color:"#4e3218"},{t:d.wealth.toLocaleString(),weight:800,size:30,family:KR,color:"#4e3218"}]);
  // 엔딩 칭호
  g.strokeStyle=INK;g.lineWidth=2;g.beginPath();g.moveTo(80,890+dy);g.lineTo(W-80,890+dy);g.stroke();
  center(`「${d.title}」  향년 ${d.age}세`,938+dy,`800 {s}px ${KR}`,34,W-130);
