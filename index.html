@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#0c1721" />
     <!-- Google tag (gtag.js) -->
     <script
       async
@@ -490,6 +491,34 @@
         gap: 14px;
         min-width: 0;
       }
+      /* 다크 테마: 스크롤바·기본 입력칸도 어두운 색으로 */
+      :root {
+        color-scheme: dark;
+      }
+      /* 모바일 터치: 두 번 탭 확대 지연을 없애고, 기본 파란 탭 하이라이트 대신 눌림 표시를 준다 */
+      button,
+      select,
+      input {
+        touch-action: manipulation;
+      }
+      button {
+        -webkit-tap-highlight-color: transparent;
+      }
+      .btn:active:not(:disabled),
+      .choice:active:not(:disabled),
+      .focusChoice:active:not(:disabled) {
+        filter: brightness(0.88);
+      }
+      /* 팝업: 안쪽 스크롤이 뒤 페이지로 새지 않게 하고, 열려 있는 동안 뒤 페이지 스크롤을 막는다 */
+      #shopOverlay > *,
+      #archiveOverlay > *,
+      #guideOverlay > *,
+      #bioOverlay > * {
+        overscroll-behavior: contain;
+      }
+      body:has(#shopOverlay, #archiveOverlay, #guideOverlay, #bioOverlay, .setupWarnOv) {
+        overflow: hidden;
+      }
     </style>
   </head>
   <body>
@@ -521,7 +550,7 @@
         </p>
         <div class="setupgrid">
           <div class="field">
-            <label>출생 바다</label
+            <label for="sea">출생 바다</label
             ><select id="sea">
               <option value="random">무작위 바다</option>
               <option>이스트 블루</option>
@@ -533,13 +562,13 @@
             </select>
           </div>
           <div class="field">
-            <label>출생 지역</label
+            <label for="birthplace">출생 지역</label
             ><select id="birthplace">
               <option value="random">무작위 — 선택한 바다에서 추첨</option>
             </select>
           </div>
           <div class="field">
-            <label>종족</label
+            <label for="race">종족</label
             ><select id="race">
               <option value="random">무작위</option>
               <option>인간</option>
@@ -554,7 +583,7 @@
             </select>
           </div>
           <div class="field">
-            <label>가정환경</label
+            <label for="family">가정환경</label
             ><select id="family">
               <option value="random">무작위</option>
               <option>가난한 가정</option>
@@ -570,17 +599,17 @@
             </select>
           </div>
           <div class="field">
-            <label>이름</label
+            <label for="charName">이름</label
             ><input id="charName" maxlength="12" autocomplete="off" placeholder="비워 두면 무작위로 정해집니다" style="width:100%;box-sizing:border-box;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:inherit;font:inherit" />
           </div>
           <div class="field">
-            <label>악마의 열매</label
+            <label for="charFruit">악마의 열매</label
             ><select id="charFruit">
               <option value="">운명에 맡긴다</option>
             </select>
           </div>
           <div class="field">
-            <label>성별</label
+            <label for="gender">성별</label
             ><select id="gender">
               <option>무작위</option>
               <option>남성</option>
@@ -588,14 +617,14 @@
             </select>
           </div>
           <div class="field">
-            <label>그림</label
+            <label for="artSetting">그림</label
             ><select id="artSetting">
               <option value="on">켜기</option>
               <option value="off">끄기</option>
             </select>
           </div>
           <div class="field">
-            <label>난이도</label
+            <label for="difficulty">난이도</label
             ><select id="difficulty">
               <option value="normal">보통</option>
               <option value="easy">
@@ -605,7 +634,7 @@
             </select>
           </div>
           <div class="field">
-            <label>인생의 속도</label
+            <label for="speed">인생의 속도</label
             ><select id="speed">
               <option value="20000" selected>30분 안팎 · 1년 약 20초 (기본)</option>
               <option value="10000">빠르게 · 1년 약 10초</option>
@@ -26957,7 +26986,7 @@ function showNameWarning(){
 }
 // 출생 설정 경고창 (이름·악마의 열매 공용)
 function showSetupWarning(html){
- const ov=document.createElement("div");ov.style.cssText="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:16px";
+ const ov=document.createElement("div");ov.className="setupWarnOv";ov.style.cssText="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:16px";
  const box=document.createElement("div");box.className="panel";box.style.cssText="max-width:440px;width:100%;line-height:1.7";
  box.innerHTML=html;
  const btn=document.createElement("button");btn.className="btn";btn.style.marginTop="14px";btn.textContent="확인";btn.onclick=()=>ov.remove();box.appendChild(btn);
@@ -29179,6 +29208,16 @@ function tacOpenFight(info, done) {
   const tb = document.getElementById("tacBtn");
   if (tb) tb.textContent = tacOn ? "⚔️ 전략 전투: 켜짐" : "⚔️ 전략 전투: 꺼짐";
 }
+/* =========================================================== */
+
+/* ===================== UI: Esc로 팝업 닫기 ===================== */
+// 지출·사건 다시 보기·게임 설명·인생 정보·출생 설정 경고창은 닫기 버튼과 똑같이 창을 지우기만 하면 된다.
+// 전략 전투 창은 싸움 도중이라 Esc로 닫지 않는다.
+document.addEventListener("keydown",e=>{
+ if(e.key!=="Escape")return;
+ const ovs=document.querySelectorAll("#shopOverlay,#archiveOverlay,#guideOverlay,#bioOverlay,.setupWarnOv");
+ if(ovs.length){ovs[ovs.length-1].remove();e.preventDefault()}
+});
 /* =========================================================== */
 
 </script>
