@@ -27051,7 +27051,10 @@ function posterData(cause){
  rows.push(["꿈",D?`${D.name} — ${p.dream.status==="진행"?"이루지 못함":p.dream.status}`:"정하지 않음"]);
  rows.push(["사인",cause.type]);
  // 인생의 주요 사건: 업적 중 자잘한 것(첫 항해·집 마련·재능 등)은 뒤로 미루고 최대 4개, 일어난 순서대로
- const ach=(p.achievements||[]).map((t,i)=>({t:String(t),i,minor:/첫 항해|마련|재능/.test(String(t))}));
+ // 평판 단계(예: '사회적 지위 30/60/90 달성')는 종류마다 가장 높은 단계 하나만 남긴다
+ const top={};(p.achievements||[]).forEach(t=>{const m=/^(.+) (\d+) 달성$/.exec(String(t));if(m)top[m[1]]=Math.max(top[m[1]]||0,+m[2])});
+ const ach=(p.achievements||[]).map((t,i)=>({t:String(t),i,minor:/첫 항해|마련|재능/.test(String(t))}))
+  .filter(x=>{const m=/^(.+) (\d+) 달성$/.exec(x.t);return !m||+m[2]===top[m[1]]});
  const major=ach.filter(x=>!x.minor).slice(-4),minor=ach.filter(x=>x.minor).slice(-(4-major.length)||ach.length);
  const events=major.concat(major.length<4?minor:[]).sort((a,b)=>a.i-b.i).map(x=>x.t);
  return {name:p.name,age:realAge(),title:endingTitle(cause),cause:cause.type,real,value,bounty,wealth,rows,events,
